@@ -146,13 +146,15 @@
             if (target) target.classList.remove('hidden');
 
             // Update Desktop Nav Links
+            const activeDesktopClasses = ['text-white', 'relative', 'after:absolute', 'after:bottom-[-6px]', 'after:left-0', 'after:w-full', 'after:h-[2px]', 'after:bg-primary-fixed-dim', 'after:rounded-t-full'];
+            
             document.querySelectorAll('header nav a').forEach(el => {
                 if (el.getAttribute('onclick') === `routeTo('${pageId}')`) {
-                    el.classList.add('text-primary-fixed-dim', 'font-bold');
-                    el.classList.remove('text-on-surface-variant');
+                    el.classList.add(...activeDesktopClasses);
+                    el.classList.remove('text-outline', 'text-on-surface-variant');
                 } else {
-                    el.classList.add('text-on-surface-variant');
-                    el.classList.remove('text-primary-fixed-dim', 'font-bold');
+                    el.classList.remove(...activeDesktopClasses);
+                    el.classList.add('text-outline');
                 }
             });
 
@@ -306,21 +308,7 @@
             // Add copy animation on click
             list.querySelectorAll('sm-copy').forEach(copyElem => {
                 copyElem.addEventListener('click', () => {
-                    const btn = copyElem.shadowRoot ? copyElem.shadowRoot.querySelector('.copy-button') : null;
-                    if (btn) {
-                        const originalHTML = btn.innerHTML;
-                        btn.innerHTML = 'COPIED!';
-                        btn.style.color = '#00e5ff';
-                        setTimeout(() => {
-                            btn.innerHTML = originalHTML;
-                            btn.style.color = '';
-                        }, 1500);
-                    } else {
-                        copyElem.innerHTML = '<span slot="copy-icon" style="color:#00e5ff; transition:color 0.3s; font-weight:bold;">COPIED!</span>';
-                        setTimeout(() => {
-                            copyElem.innerHTML = '';
-                        }, 1500);
-                    }
+                    showToast("Copied ","success");
                 });
             });
 
@@ -540,17 +528,20 @@
                 <!-- Centered Navigation -->
                 <nav class="hidden lg:flex flex-1 justify-center items-center gap-10">
                     <a href="#"
-                        class="text-white font-label-lg relative after:absolute after:bottom-[-6px] after:left-0 after:w-full after:h-[2px] after:bg-primary-fixed-dim after:rounded-t-full transition-colors"
+                        class="text-white hover:text-white font-label-lg relative after:absolute after:bottom-[-6px] after:left-0 after:w-full after:h-[2px] after:bg-primary-fixed-dim after:rounded-t-full transition-colors"
                         onclick="routeTo('page_explore')">Home</a>
                     <a href="#"
-                        class="text-outline font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
+                        class="text-outline hover:text-white font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
                         onclick="routeTo('page_library')">Library</a>
                     <a href="#"
-                        class="text-outline font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
+                        class="text-outline hover:text-white font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
                         onclick="routeTo('page_dashboard')">Dashboard</a>
                     <a href="#"
-                        class="text-outline font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
+                        class="text-outline hover:text-white font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
                         onclick="routeTo('page_creator_profile')">Profile</a>
+                    <a href="#"
+                        class="text-outline font-label-lg transition-colors hover:text-white"
+                        onclick="routeTo('page_upload')">Upload</a>
                 </nav>
                 <div class="flex items-center gap-3 sm:gap-md shrink-0">
                     <button
@@ -630,382 +621,137 @@
                         VIEW ALL <span class="material-symbols-outlined text-sm">arrow_forward</span>
                     </button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/79de4830-2aab-427f-9f6b-6bd70bd1b678.mp3', 'समुंदर बनके रहूँगा', 'Nitin Khanapurkar', 'https://cdn1.suno.ai/sAura9.jpg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="समुंदर बनके रहूँगा by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn1.suno.ai/sAura9.jpg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
+                <div id="explore_track_grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+                    <!-- Skeleton loading placeholders shown until cloud tracks arrive -->
+                    <div class="glass-panel rounded-xl p-md flex flex-col animate-pulse" aria-hidden="true">
+                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg bg-white/5"></div>
                         <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">समुंदर बनके रहूँगा</h3>
+                            <div class="w-full">
+                                <div class="h-5 w-3/4 rounded bg-white/5 mb-xs"></div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">HUMAN</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                                    <div class="h-4 w-20 rounded bg-white/5"></div>
+                                    <div class="h-4 w-24 rounded bg-white/5"></div>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">100 FLO</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="h-3 w-16 rounded bg-white/5"></div>
+                                <div class="h-4 w-12 rounded bg-white/5"></div>
                             </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">1200</span>
+                            <div class="flex items-center gap-2">
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
                             </div>
                         </div>
                     </div>
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/541d7094-5af2-43e2-86bf-953c6e91016f.mp3', 'ज़ुस्तजू', 'Nitin Khanapurkar', 'https://cdn1.suno.ai/sAura17.jpg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="ज़ुस्तजू by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn1.suno.ai/sAura17.jpg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
+                    <div class="glass-panel rounded-xl p-md flex flex-col animate-pulse" aria-hidden="true">
+                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg bg-white/5"></div>
                         <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">ज़ुस्तजू</h3>
+                            <div class="w-full">
+                                <div class="h-5 w-2/3 rounded bg-white/5 mb-xs"></div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">HUMAN</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                                    <div class="h-4 w-20 rounded bg-white/5"></div>
+                                    <div class="h-4 w-24 rounded bg-white/5"></div>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">120 FLO</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="h-3 w-16 rounded bg-white/5"></div>
+                                <div class="h-4 w-12 rounded bg-white/5"></div>
                             </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">905</span>
+                            <div class="flex items-center gap-2">
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
                             </div>
                         </div>
                     </div>
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/533891f1-205a-4e7a-a0be-c9e4e70aa1a5.mp3', 'हर कोई बिकेगा', 'Nitin Khanapurkar', 'https://cdn1.suno.ai/sAura12.jpg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="हर कोई बिकेगा by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn1.suno.ai/sAura12.jpg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
+                    <div class="glass-panel rounded-xl p-md flex flex-col animate-pulse" aria-hidden="true">
+                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg bg-white/5"></div>
                         <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">हर कोई बिकेगा</h3>
+                            <div class="w-full">
+                                <div class="h-5 w-4/5 rounded bg-white/5 mb-xs"></div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">HUMAN</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                                    <div class="h-4 w-20 rounded bg-white/5"></div>
+                                    <div class="h-4 w-24 rounded bg-white/5"></div>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">124 FLO</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="h-3 w-16 rounded bg-white/5"></div>
+                                <div class="h-4 w-12 rounded bg-white/5"></div>
                             </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">1,240</span>
+                            <div class="flex items-center gap-2">
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
                             </div>
                         </div>
                     </div>
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/c5204867-f589-49a2-879d-485ef9130d12.mp3', 'राम राज का वादा (Fade In)', 'Nitin Khanapurkar', 'https://cdn2.suno.ai/image_large_c5204867-f589-49a2-879d-485ef9130d12.jpeg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="राम राज का वादा (Fade In) by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn2.suno.ai/image_large_c5204867-f589-49a2-879d-485ef9130d12.jpeg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
+                    <div class="glass-panel rounded-xl p-md flex flex-col animate-pulse hidden md:flex" aria-hidden="true">
+                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg bg-white/5"></div>
                         <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">राम राज का वादा (Fade In)
-                                </h3>
+                            <div class="w-full">
+                                <div class="h-5 w-3/5 rounded bg-white/5 mb-xs"></div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">AI</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                                    <div class="h-4 w-20 rounded bg-white/5"></div>
+                                    <div class="h-4 w-24 rounded bg-white/5"></div>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">89 FLO</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="h-3 w-16 rounded bg-white/5"></div>
+                                <div class="h-4 w-12 rounded bg-white/5"></div>
                             </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">890</span>
+                            <div class="flex items-center gap-2">
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
                             </div>
                         </div>
                     </div>
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/4fb9d4e0-4cf5-4aa1-b854-ea1b6ceaf4ed.mp3', 'खोल डाल फोड डाल', 'Nitin Khanapurkar', 'https://cdn1.suno.ai/sAura22.jpg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="खोल डाल फोड डाल by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn1.suno.ai/sAura22.jpg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
+                    <div class="glass-panel rounded-xl p-md flex flex-col animate-pulse hidden lg:flex" aria-hidden="true">
+                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg bg-white/5"></div>
                         <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">खोल डाल फोड डाल</h3>
+                            <div class="w-full">
+                                <div class="h-5 w-2/4 rounded bg-white/5 mb-xs"></div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">HUMAN</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                                    <div class="h-4 w-20 rounded bg-white/5"></div>
+                                    <div class="h-4 w-24 rounded bg-white/5"></div>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">210 FLO</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="h-3 w-16 rounded bg-white/5"></div>
+                                <div class="h-4 w-12 rounded bg-white/5"></div>
                             </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">2,100</span>
+                            <div class="flex items-center gap-2">
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
                             </div>
                         </div>
                     </div>
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/038e5e31-d099-461e-b556-f09bc2797709.mp3', 'गली गली बस शोर है (Fade In)', 'Nitin Khanapurkar', 'https://cdn2.suno.ai/image_large_038e5e31-d099-461e-b556-f09bc2797709.jpeg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="गली गली बस शोर है (Fade In) by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn2.suno.ai/image_large_038e5e31-d099-461e-b556-f09bc2797709.jpeg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
+                    <div class="glass-panel rounded-xl p-md flex flex-col animate-pulse hidden lg:flex" aria-hidden="true">
+                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg bg-white/5"></div>
                         <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">गली गली बस शोर है (Fade In)
-                                </h3>
+                            <div class="w-full">
+                                <div class="h-5 w-3/4 rounded bg-white/5 mb-xs"></div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">AI</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                                    <div class="h-4 w-20 rounded bg-white/5"></div>
+                                    <div class="h-4 w-24 rounded bg-white/5"></div>
                                 </div>
                             </div>
                         </div>
                         <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">45 FLO</span>
+                            <div class="flex flex-col gap-1">
+                                <div class="h-3 w-16 rounded bg-white/5"></div>
+                                <div class="h-4 w-12 rounded bg-white/5"></div>
                             </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">450</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/4a16cd69-f13e-4903-a4fb-cba770ac91f7.mp3', 'पैलतीर तिथे वाळवंट', 'Nitin Khanapurkar', 'https://cdn1.suno.ai/sAura6.jpg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="पैलतीर तिथे वाळवंट by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn1.suno.ai/sAura6.jpg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">पैलतीर तिथे वाळवंट</h3>
-                                <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">HUMAN</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">340 FLO</span>
-                            </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">3,400</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                        onclick="playTrack('https://cdn1.suno.ai/3dbcd079-9e71-405d-afd9-80757e33fce8.mp3', 'अम्मी की सीख', 'Nitin Khanapurkar', 'https://cdn1.suno.ai/sAura13.jpg')">
-                        <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                            <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                alt="अम्मी की सीख by Nitin Khanapurkar - Suno AI Generated Track"
-                                src="https://cdn1.suno.ai/sAura13.jpg" />
-                            <div
-                                class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <div
-                                    class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                    <span class="material-symbols-outlined text-4xl"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </div>
-                            </div>
-                            <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                <span
-                                    class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO
-                                    AI MUSIC</span>
-                            </div>
-                        </div>
-                        <div class="flex justify-between items-start mb-2">
-                            <div>
-                                <h3 class="font-headline-md text-xl text-on-surface mb-xs">अम्मी की सीख</h3>
-                                <div class="flex items-center gap-2 mt-1">
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics:
-                                        <span class="text-secondary-fixed-dim">HUMAN</span></span>
-                                    <span
-                                        class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music:
-                                        <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                            <div class="flex flex-col">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Consumption
-                                    Value</span>
-                                <span class="font-code-sm text-sm text-primary-fixed-dim">560 FLO</span>
-                            </div>
-                            <div class="flex flex-col items-end">
-                                <span
-                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Plays</span>
-                                <span class="font-code-sm text-sm text-on-surface-variant">5,600</span>
+                            <div class="flex items-center gap-2">
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
+                                <div class="h-6 w-16 rounded bg-white/5"></div>
                             </div>
                         </div>
                     </div>
@@ -2510,6 +2256,79 @@
         </div>
     </div>
 
+    
+        <!-- Upload Track Page -->
+        <section id="page_upload" class="inner-page hidden relative pt-20 pb-32 min-h-screen">
+            <div class="absolute inset-0 z-0 opacity-20">
+                <div class="absolute inset-0 neural-mesh"></div>
+            </div>
+            
+            <div class="relative z-10 max-w-2xl mx-auto px-margin-mobile md:px-margin-desktop py-xl">
+                <div class="text-center mb-xl">
+                    <h2 class="font-display-lg text-4xl text-white mb-2">Publish a Track</h2>
+                    <p class="text-on-surface-variant font-body-base">Upload AI-generated music by providing a Suno share link. All metadata will be extracted automatically.</p>
+                </div>
+
+                <div class="glass-panel p-8 rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden">
+                    <!-- Glow effect behind form -->
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-primary-fixed-dim/10 rounded-full blur-[80px] pointer-events-none"></div>
+                    
+                    <div class="relative z-10 flex flex-col gap-6">
+                        <div>
+                            <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Suno Share Link</label>
+                            <div class="relative">
+                                <input id="suno_link_input" type="text"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-32 py-4 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                    placeholder="https://suno.com/s/...">
+                                <button id="fetch_suno_btn" onclick="fetchSunoData()"
+                                    class="absolute right-2 top-1/2 -translate-y-1/2 bg-primary-fixed-dim/10 text-primary-fixed-dim hover:bg-primary-fixed-dim hover:text-on-primary border border-primary-fixed-dim/30 font-bold text-[10px] font-label-caps tracking-widest px-4 py-2 rounded-lg transition-all flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[14px]">autorenew</span>
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-outline mt-2 font-code-sm flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px] text-primary-fixed-dim">info</span>
+                                E.g. suno.com/s/xxxxxxxx
+                            </p>
+                        </div>
+
+                        <!-- Preview Card (Hidden initially) -->
+                        <div id="upload_preview_card" class="hidden mt-4 pt-6 border-t border-white/5">
+                            <h3 class="font-label-caps text-xs text-primary-fixed-dim tracking-wider mb-4">Track Preview</h3>
+                            
+                            <div class="flex flex-row gap-4 sm:gap-6 items-start bg-black/30 p-4 rounded-xl border border-white/5">
+                                <img id="preview_image" src="" class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 rounded-lg object-cover shadow-lg border border-white/10">
+                                <div class="flex flex-col flex-1 min-w-0">
+                                    <div class="flex items-start justify-between gap-2 mb-2">
+                                        <h4 id="preview_title" class="font-display-lg text-xl sm:text-2xl text-white truncate w-full">Track Title</h4>
+                                        
+                                    </div>
+                                    <p id="preview_artist" class="text-on-surface-variant font-code-sm text-sm mb-4">Artist Name</p>
+                                    
+                                    <div class="grid grid-cols-2 gap-4 mt-auto">
+                                        <div class="flex flex-col">
+                                            <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Source Plays</span>
+                                            <span id="preview_plays" class="font-code-sm text-sm text-primary-fixed-dim">0</span>
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Lyrics</span>
+                                            <span id="preview_lyrics_status" class="font-code-sm text-sm text-primary-fixed-dim">Yes</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button id="publish_track_btn" onclick="publishTrack()"
+                                class="w-full mt-6 bg-primary-fixed-dim text-on-primary-fixed font-bold text-sm font-label-caps tracking-widest px-6 py-4 rounded-xl hover:shadow-[0_0_20px_rgba(0,219,233,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">publish</span>
+                                PUBLISH
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </section>
+
     <footer id="audio_player_footer"
         class="fixed bottom-16 md:bottom-0 w-full z-30 bg-surface-container/90 dark:bg-surface-container/90 backdrop-blur-2xl border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] translate-y-full opacity-0 pointer-events-none transition-all duration-500 ease-in-out">
         <!-- Mobile Player (visible on small screens) -->
@@ -2552,102 +2371,6 @@
                 </div>
             </div>
 
-            <!-- Full Screen View (Hidden by default) -->
-            <div id="mobile_player_full"
-                class="fixed inset-0 z-[100] bg-surface-container-lowest flex-col hidden opacity-0 transition-opacity duration-300 pointer-events-none">
-                <!-- Top Bar -->
-                <div class="flex justify-between items-center p-4">
-                    <button id="mobile_player_close" class="p-2 text-outline hover:text-white active:scale-90">
-                        <span class="material-symbols-outlined">expand_more</span>
-                    </button>
-                    <span class="font-label-caps text-xs text-outline tracking-widest">NOW PLAYING</span>
-                    <button class="p-2 text-outline hover:text-white active:scale-90">
-                        <span class="material-symbols-outlined">more_vert</span>
-                    </button>
-                </div>
-
-                <!-- Album Art -->
-                <div class="flex-1 flex items-center justify-center p-6 cursor-pointer"
-                    onclick="closeMobileFullscreen(); routeTo('page_track_detail')">
-                    <div class="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl relative group">
-                        <img id="player_track_img_full"
-                            class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            src="https://cdn1.suno.ai/sAura12.jpg" />
-                    </div>
-                </div>
-
-                <!-- Track Info & Controls -->
-                <div class="p-6 pb-8 space-y-6">
-                    <div class="flex justify-between items-end">
-                        <div class="min-w-0 flex-1 pr-4 cursor-pointer hover:bg-white/5 -ml-2 p-2 rounded-lg transition-colors flex items-center gap-2 group"
-                            onclick="closeMobileFullscreen(); routeTo('page_track_detail')">
-                            <div class="min-w-0 flex-1">
-                                <h2 id="player_track_title_full"
-                                    class="text-2xl font-display-lg text-white truncate mb-1">हर कोई बिकेगा</h2>
-                                <p id="player_track_artist_full" class="text-lg text-outline truncate">Nitin Khanapurkar
-                                </p>
-                            </div>
-                        </div>
-                        <button class="text-primary-fixed-dim hover:text-white active:scale-90 p-2">
-                            <span class="material-symbols-outlined text-3xl"
-                                style="font-variation-settings: 'FILL' 1;">favorite</span>
-                        </button>
-                    </div>
-
-                    <!-- Full Progress Bar -->
-                    <div class="space-y-2">
-                        <div id="player_progress_container_full"
-                            class="w-full h-1.5 bg-white/20 rounded-full cursor-pointer relative group">
-                            <div id="player_progress_bar_full"
-                                class="absolute left-0 top-0 h-full w-[0%] bg-primary-fixed-dim rounded-full">
-                                <div
-                                    class="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex justify-between text-xs text-outline font-code-sm">
-                            <span id="player_current_time_full">0:00</span>
-                            <span id="player_duration_full">0:00</span>
-                        </div>
-                    </div>
-
-                    <!-- Main Controls -->
-                    <div class="flex justify-between items-center">
-                        <button class="text-outline hover:text-white active:scale-90"><span
-                                class="material-symbols-outlined">shuffle</span></button>
-                        <button id="player_prev_btn_full" class="text-white active:scale-90"><span
-                                class="material-symbols-outlined text-4xl"
-                                style="font-variation-settings: 'FILL' 1;">skip_previous</span></button>
-                        <button id="player_play_btn_full"
-                            class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center active:scale-90 transition-all glow-cyan-strong">
-                            <span id="player_play_icon_full" class="material-symbols-outlined text-4xl"
-                                style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                        </button>
-                        <button id="player_next_btn_full" class="text-white active:scale-90"><span
-                                class="material-symbols-outlined text-4xl"
-                                style="font-variation-settings: 'FILL' 1;">skip_next</span></button>
-                        <button class="text-outline hover:text-white active:scale-90"><span
-                                class="material-symbols-outlined">repeat</span></button>
-                    </div>
-
-                    <!-- Lyrics Peeking Card -->
-                    <div class="bg-surface-container/50 rounded-xl p-4 mt-6 backdrop-blur-md relative overflow-hidden">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="font-headline-md text-sm text-white flex items-center gap-2"><span
-                                    class="material-symbols-outlined text-[16px] text-primary-fixed-dim">lyrics</span>
-                                Lyrics</span>
-                            <button onclick="openDesktopLyrics()"
-                                class="bg-white/10 rounded-full px-3 py-1 text-xs text-white hover:bg-white/20 transition-colors flex items-center gap-1">
-                                <span class="material-symbols-outlined text-[14px]">open_in_full</span> Expand
-                            </button>
-                        </div>
-                        <div id="mobile_lyrics_preview"
-                            class="space-y-1 h-12 overflow-hidden mask-bottom font-body-base text-lg text-white/80">
-                            <p class="text-outline/50">Loading lyrics...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
         <!-- Desktop Player (hidden on small screens) -->
         <div
@@ -2741,6 +2464,103 @@
         </div>
     </footer>
 
+            <!-- Full Screen View (Hidden by default) -->
+            <div id="mobile_player_full"
+                class="fixed inset-0 z-[100] bg-surface-container-lowest flex-col hidden opacity-0 transition-opacity duration-300 pointer-events-none overflow-y-auto pb-24">
+                <!-- Top Bar -->
+                <div class="flex justify-between items-center p-4 sticky top-0 z-20 bg-surface-container-lowest/95 backdrop-blur-md">
+                    <button id="mobile_player_close" class="p-2 text-outline hover:text-white active:scale-90">
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </button>
+                    <span class="font-label-caps text-xs text-outline tracking-widest">NOW PLAYING</span>
+                    <button class="p-2 text-outline hover:text-white active:scale-90">
+                        <span class="material-symbols-outlined">more_vert</span>
+                    </button>
+                </div>
+
+                <!-- Album Art -->
+                <div class="flex-1 flex items-center justify-center p-6 cursor-pointer"
+                    onclick="closeMobileFullscreen(); routeTo('page_track_detail')">
+                    <div class="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl relative group">
+                        <img id="player_track_img_full"
+                            class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            src="https://cdn1.suno.ai/sAura12.jpg" />
+                    </div>
+                </div>
+
+                <!-- Track Info & Controls -->
+                <div class="p-6 pb-8 space-y-6">
+                    <div class="flex justify-between items-end">
+                        <div class="min-w-0 flex-1 pr-4 cursor-pointer hover:bg-white/5 -ml-2 p-2 rounded-lg transition-colors flex items-center gap-2 group"
+                            onclick="closeMobileFullscreen(); routeTo('page_track_detail')">
+                            <div class="min-w-0 flex-1">
+                                <h2 id="player_track_title_full"
+                                    class="text-2xl font-display-lg text-white truncate mb-1">हर कोई बिकेगा</h2>
+                                <p id="player_track_artist_full" class="text-lg text-outline truncate">Nitin Khanapurkar
+                                </p>
+                            </div>
+                        </div>
+                        <button class="text-primary-fixed-dim hover:text-white active:scale-90 p-2">
+                            <span class="material-symbols-outlined text-3xl"
+                                style="font-variation-settings: 'FILL' 1;">favorite</span>
+                        </button>
+                    </div>
+
+                    <!-- Full Progress Bar -->
+                    <div class="space-y-2">
+                        <div id="player_progress_container_full"
+                            class="w-full h-1.5 bg-white/20 rounded-full cursor-pointer relative group">
+                            <div id="player_progress_bar_full"
+                                class="absolute left-0 top-0 h-full w-[0%] bg-primary-fixed-dim rounded-full">
+                                <div
+                                    class="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between text-xs text-outline font-code-sm">
+                            <span id="player_current_time_full">0:00</span>
+                            <span id="player_duration_full">0:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Main Controls -->
+                    <div class="flex justify-between items-center">
+                        <button class="text-outline hover:text-white active:scale-90"><span
+                                class="material-symbols-outlined">shuffle</span></button>
+                        <button id="player_prev_btn_full" class="text-white active:scale-90"><span
+                                class="material-symbols-outlined text-4xl"
+                                style="font-variation-settings: 'FILL' 1;">skip_previous</span></button>
+                        <button id="player_play_btn_full"
+                            class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center active:scale-90 transition-all glow-cyan-strong">
+                            <span id="player_play_icon_full" class="material-symbols-outlined text-4xl"
+                                style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                        </button>
+                        <button id="player_next_btn_full" class="text-white active:scale-90"><span
+                                class="material-symbols-outlined text-4xl"
+                                style="font-variation-settings: 'FILL' 1;">skip_next</span></button>
+                        <button class="text-outline hover:text-white active:scale-90"><span
+                                class="material-symbols-outlined">repeat</span></button>
+                    </div>
+
+                    <!-- Lyrics Peeking Card -->
+                    <div class="bg-surface-container/50 rounded-xl p-4 mt-6 backdrop-blur-md relative overflow-hidden">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-headline-md text-sm text-white flex items-center gap-2">Lyrics</span>
+                            <button onclick="openDesktopLyrics()"
+                                class="bg-white/10 rounded-full px-3 py-1 text-xs text-white hover:bg-white/20 transition-colors flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[14px]">open_in_full</span> Expand
+                            </button>
+                        </div>
+                        <div id="mobile_lyrics_preview"
+                            class="space-y-1 h-32 overflow-y-auto font-body-base text-lg text-white/80">
+                            <p class="text-outline/50">Loading lyrics...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
     <nav
         class="lg:hidden fixed bottom-0 w-full z-50 bg-surface-container-low/90 backdrop-blur-2xl border-t border-white/5 flex items-center justify-around h-16 px-2">
         <button onclick="routeTo('page_explore')"
@@ -2763,7 +2583,15 @@
             <span class="material-symbols-outlined text-2xl">person</span>
             <span class="font-code-sm text-[9px] uppercase tracking-wider">Profile</span>
         </button>
+        <button onclick="routeTo('page_upload')"
+            class="flex flex-col items-center justify-center gap-1 w-full h-full text-on-surface-variant hover:text-primary-fixed-dim transition-colors">
+            <span class="material-symbols-outlined text-2xl">upload</span>
+            <span class="font-code-sm text-[9px] uppercase tracking-wider">Upload</span>
+        </button>
     </nav>
+    <script src="scripts/config.js"></script>
+    <script src="scripts/toast.js"></script>
+    <script src="scripts/suno_upload.js" defer></script>
     <script src="scripts/main.js" defer></script>
     </div>
     <template id="generateKeys">
@@ -2800,6 +2628,39 @@
     </template>
 
 
+
+
+
+
+    <!-- Lyrics Modal -->
+    <div id="lyrics_modal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm cursor-pointer" onclick="closeDesktopLyrics()"></div>
+        <div class="bg-surface-container rounded-3xl w-full max-w-2xl max-h-[85vh] relative flex flex-col shadow-2xl border border-white/10 overflow-hidden transform transition-all">
+            <!-- Glow effect -->
+            <div class="absolute top-0 right-0 w-64 h-64 bg-primary-fixed-dim/10 rounded-full blur-[80px] pointer-events-none"></div>
+            
+            <div class="p-6 border-b border-white/5 flex justify-between items-center bg-surface-container z-10 sticky top-0">
+                <h3 class="font-display-lg text-2xl text-white flex items-center gap-2">
+                    Lyrics
+                </h3>
+                <button onclick="closeDesktopLyrics()" class="text-outline hover:text-white active:scale-90 transition-all">
+                    <span class="material-symbols-outlined text-3xl">close</span>
+                </button>
+            </div>
+            
+            <div class="p-8 overflow-y-auto custom-scrollbar flex-1 relative z-10" id="lyrics_modal_content">
+                <!-- Lyrics injected here -->
+                <div class="flex items-center gap-2 text-primary-fixed-dim justify-center py-20">
+                    <span class="material-symbols-outlined animate-spin text-3xl">refresh</span>
+                    <span class="font-label-caps tracking-widest text-sm">FETCHING FROM SUNO...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+<div
+  id="toast-container"
+  class="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] md:left-auto md:right-6 md:w-auto md:translate-x-0 z-[9999] flex flex-col gap-3 pointer-events-none">
+</div>
 </body>
 
 </html>
