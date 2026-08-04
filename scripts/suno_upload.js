@@ -158,7 +158,7 @@ async function publishTrack() {
     };
 
     // Write to Supernode Cloud
-    await floCloudAPI.sendApplicationData(trackData, "MusicMarketplace_Track");
+    await floCloudAPI.sendApplicationData(trackData, "MusicLibrary_Track");
 
     // Keep local track list in sync immediately
     TRACKS.unshift({

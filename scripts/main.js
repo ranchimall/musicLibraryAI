@@ -484,8 +484,8 @@ window.loadTracksFromCloud = async function () {
     }
 
     // requestGeneralData returns delta. The full data is stored in floGlobals.generalDataset
-    await floCloudAPI.requestGeneralData("MusicMarketplace_Track");
-    const data = floGlobals.generalDataset("MusicMarketplace_Track");
+    await floCloudAPI.requestGeneralData("MusicLibrary_Track");
+    const data = floGlobals.generalDataset("MusicLibrary_Track");
 
     console.log("Cloud data received:", data);
 
@@ -597,6 +597,75 @@ let currentTrackIndex = -1;
 let currentPlayingUUID = null;
 let currentLyricsCache = {};
 
+function cleanLyrics(lyrics) {
+  return (
+    lyrics
+      // Remove hydration prefixes
+      .replace(/^[A-Za-z0-9]+:[^,]+,/, "")
+      .replace(/^[A-Za-z0-9]+,/, "")
+
+      // Decode escaped characters
+      .replace(/\\\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
+
+      // Remove trailing hydration ending
+      .replace(/\\?"?\]\);?$/, "")
+
+      .trim()
+  );
+}
+
+function extractLyrics(html, uuid) {
+  let lyrics = "";
+
+  const pushBlocks =
+    html.match(/self\.__next_f\.push\(\[[\s\S]*?\]\);?/g) || [];
+
+  const songBlock = pushBlocks.find(
+    (block) =>
+      block.includes(`\\"id\\":\\"${uuid}\\"`) ||
+      block.includes(`"id":"${uuid}"`),
+  );
+
+  if (!songBlock) {
+    console.warn("Could not locate hydration block for", uuid);
+    return "";
+  }
+
+  
+  const promptMatch = songBlock.match(
+    /\\?"prompt\\?"\s*:\s*\\?"([\s\S]*?)(?<!\\)\\?"/i,
+  );
+
+  if (!promptMatch) return "";
+
+  lyrics = promptMatch[1].trim();
+  lyrics = cleanLyrics(lyrics);
+
+  // New Suno format (prompt -> "$60")
+  if (/^\$[a-zA-Z0-9]+$/.test(lyrics)) {
+    const ref = lyrics.slice(1);
+
+    // Find the hydration block that defines this reference
+    const refBlock = pushBlocks.find((block) => block.includes(`${ref}:`));
+
+    if (!refBlock) return "";
+
+    // Extract only the quoted hydration payload
+    const match = refBlock.match(
+      new RegExp(`${ref}:[^,]*,([\\s\\S]*?)"\\]\\)`),
+    );
+
+    if (!match) return "";
+
+    lyrics = cleanLyrics(match[1]);
+  }
+
+  return lyrics
+}
+
 async function preloadLyrics(uuid) {
   if (currentLyricsCache[uuid]) {
     renderLyrics(currentLyricsCache[uuid]);
@@ -610,18 +679,10 @@ async function preloadLyrics(uuid) {
     const response = await fetch(proxyUrl);
     if (!response.ok) throw new Error("Failed to fetch");
     const html = await response.text();
+    let lyrics = extractLyrics(html, uuid);
 
-    let lyrics = "No lyrics available for this track (Instrumental).";
-    const promptMatch = html.match(
-      /\\?"prompt\\?"\s*:\s*\\?"(.*?)(?<!\\)\\?"/i,
-    );
-    if (promptMatch) {
-      const extracted = promptMatch[1]
-        .replace(/\\\\n/g, "\n")
-        .replace(/\\n/g, "\n")
-        .replace(/\\"/g, '"')
-        .trim();
-      if (extracted) lyrics = extracted;
+    if (!lyrics) {
+      lyrics = "No lyrics available for this track (Instrumental).";
     }
 
     currentLyricsCache[uuid] = lyrics;
@@ -673,18 +734,10 @@ window.openDesktopLyrics = async function () {
     if (!response.ok) throw new Error("Failed to fetch");
     const html = await response.text();
 
-    let lyrics = "No lyrics available for this track.";
-    const promptMatch = html.match(
-      /\\?"prompt\\?"\s*:\s*\\?"(.*?)(?<!\\)\\?"/i,
-    );
-    if (promptMatch) {
-      lyrics = promptMatch[1]
-        .replace(/\\\\n/g, "\n")
-        .replace(/\\n/g, "\n")
-        .replace(/\\"/g, '"')
-        .trim();
-      if (!lyrics)
-        lyrics = "No lyrics available for this track (Instrumental).";
+    let lyrics = extractLyrics(html, currentPlayingUUID);
+
+    if (!lyrics) {
+      lyrics = "No lyrics available for this track.";
     }
 
     currentLyricsCache[currentPlayingUUID] = lyrics;
@@ -922,7 +975,7 @@ window.customElements.define(
       // Add copy animation on click (fallback for clipboard API failure)
       this.querySelectorAll("sm-copy").forEach((copyElem) => {
         copyElem.addEventListener("click", () => {
-         showToast("Copied","success");
+          showToast("Copied", "success");
         });
       });
     }
