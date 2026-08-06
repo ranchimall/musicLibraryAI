@@ -205,6 +205,19 @@ if (playBtnMobile) {
   });
 }
 const likeBtnMobile = document.getElementById("player_like_btn_mobile");
+
+document
+  .getElementById("player_like_btn")
+  ?.addEventListener("click", playerLikeClicked);
+
+document
+  .getElementById("player_like_btn_mobile")
+  ?.addEventListener("click", playerLikeClicked);
+
+document
+  .getElementById("player_like_btn_full")
+  ?.addEventListener("click", playerLikeClicked);
+
 if (likeBtnMobile) {
   likeBtnMobile.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -575,7 +588,7 @@ window.loadTracksFromCloud = async function () {
 
     if (grid) {
       grid.innerHTML = html;
-      setTimeout(() => fetchLivePlaysQueue(TRACKS), 2000);
+      setTimeout(() =>  fetchLivePlaysQueue(TRACKS), 2000);
     }
   } catch (err) {
     console.error("Failed to load tracks from cloud:", err);
@@ -634,7 +647,7 @@ function extractLyrics(html, uuid) {
     return "";
   }
 
-  
+
   const promptMatch = songBlock.match(
     /\\?"prompt\\?"\s*:\s*\\?"([\s\S]*?)(?<!\\)\\?"/i,
   );
@@ -779,6 +792,12 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
   currentTrackIndex = TRACKS.findIndex((t) => t.audio === audioUrl);
   const track = TRACKS[currentTrackIndex];
 
+  if (track) {
+    fetchTrackLikes(track.id)
+      .then(updatePlayerLikes)
+      .catch(console.error);
+  }
+
   // Immediately increment platform plays in DB and UI
   if (track && track.id) {
     fetch(
@@ -922,6 +941,61 @@ window.playSunoURL = function (url) {
     showToast("Please enter a valid Suno link.", "warning");
   }
 };
+
+async function fetchTrackLikes(trackId) {
+  const res = await fetch(
+    `${API_BASE_URL}/api/likes?id=${encodeURIComponent(trackId)}&user=${encodeURIComponent(floGlobals.myFloID)}`
+  );
+
+  return await res.json();
+}
+
+async function toggleTrackLike(trackId) {
+  const res = await fetch(
+    `${API_BASE_URL}/api/likes?id=${encodeURIComponent(trackId)}&user=${encodeURIComponent(floGlobals.myFloID)}`,
+    {
+      method: "POST",
+    }
+  );
+
+  return await res.json();
+}
+
+function updatePlayerLikes(data) {
+  const hearts = [
+    "player_heart",
+    "player_heart_mobile",
+    "player_heart_full",
+    "player_heart_detail"
+  ];
+
+  hearts.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    el.style.fontVariationSettings = data.liked
+      ? "'FILL' 1"
+      : "'FILL' 0";
+
+    el.classList.toggle("text-primary-fixed-dim", data.liked);
+    el.classList.toggle("text-outline", !data.liked);
+  });
+}
+
+async function playerLikeClicked(e) {
+  e.stopPropagation();
+
+  if (currentTrackIndex < 0) return;
+
+  const track = TRACKS[currentTrackIndex];
+
+  try {
+    const data = await toggleTrackLike(track.id);
+    updatePlayerLikes(data);
+  } catch (err) {
+    console.error(err);
+  }
+}
 
 window.customElements.define(
   "keys-generator",
