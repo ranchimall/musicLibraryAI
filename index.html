@@ -5,6 +5,7 @@
 <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <meta name="color-scheme" content="dark" />
     <title>RanchiMall | AI Music Marketplace</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link
@@ -168,6 +169,14 @@
                     el.classList.remove('text-primary-fixed-dim');
                 }
             });
+
+            // Refresh page-specific data when navigating to Library / Profile
+            if (pageId === 'page_library' && typeof renderLibrary === 'function') {
+                renderLibrary();
+            }
+            if (pageId === 'page_creator_profile' && typeof loadLikedSongs === 'function') {
+                loadLikedSongs();
+            }
         }
 
         function onLoadStartUp() {
@@ -530,14 +539,12 @@
                     <a href="#"
                         class="text-white hover:text-white font-label-lg relative after:absolute after:bottom-[-6px] after:left-0 after:w-full after:h-[2px] after:bg-primary-fixed-dim after:rounded-t-full transition-colors"
                         onclick="routeTo('page_explore')">Home</a>
-                    <a href="#"
-                        class="text-outline hover:text-white font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
+                    <a href="#" class="text-outline hover:text-white font-label-lg transition-colors"
                         onclick="routeTo('page_library')">Library</a>
                     <a href="#"
                         class="text-outline hover:text-white font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
                         onclick="routeTo('page_dashboard')">Dashboard</a>
-                    <a href="#"
-                        class="text-outline hover:text-white font-label-lg transition-colors opacity-50 pointer-events-none cursor-not-allowed"
+                    <a href="#" class="text-outline hover:text-white font-label-lg transition-colors"
                         onclick="routeTo('page_creator_profile')">Profile</a>
                     <a href="#" class="text-outline font-label-lg transition-colors hover:text-white"
                         onclick="routeTo('page_upload')">Upload</a>
@@ -873,275 +880,50 @@
         <!-- START page_library -->
         <section id="page_library" class="inner-page hidden w-full relative pt-20 pb-32">
 
-            <div class="flex-1 overflow-y-auto">
+            <div class="flex-1 overflow-y-auto px-margin-mobile md:px-margin-desktop">
 
                 <!-- Header Section -->
-                <section class="mb-xl">
-                    <h1
-                        class="font-display-lg text-display-lg-mobile md:text-display-lg tracking-tighter text-on-surface mb-xs">
-                        USER_<span class="text-primary-fixed-dim">LIBRARY</span>
-                    </h1>
-                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-md">
-                        <nav class="flex gap-md border-b border-white/5 w-full md:w-auto">
-                            <button
-                                class="font-label-caps text-label-caps py-sm border-b-2 border-primary-fixed-dim text-primary-fixed-dim px-xs transition-all">PURCHASED</button>
-                            <button
-                                class="font-label-caps text-label-caps py-sm border-b-2 border-transparent text-outline hover:text-on-surface px-xs transition-all">FAVORITES</button>
-                            <button
-                                class="font-label-caps text-label-caps py-sm border-b-2 border-transparent text-outline hover:text-on-surface px-xs transition-all">HISTORY</button>
-                        </nav>
-                        <!-- Filters -->
-                        <div class="flex flex-wrap gap-sm">
-                            <div
-                                class="flex items-center gap-xs px-sm py-xs bg-surface-container-low border border-white/10 rounded-lg">
-                                <span class="font-code-sm text-code-sm text-outline">GENRE:</span>
-                                <select
-                                    class="bg-transparent border-none text-primary-fixed-dim font-code-sm text-code-sm outline-none cursor-pointer">
-                                    <option>ALL_SEQUENCES</option>
-                                    <option>NEURAL_CORE</option>
-                                    <option>PHONK_AI</option>
-                                </select>
-                            </div>
-                            <div
-                                class="flex items-center gap-xs px-sm py-xs bg-surface-container-low border border-white/10 rounded-lg">
-                                <span class="font-code-sm text-code-sm text-outline">BPM:</span>
-                                <select
-                                    class="bg-transparent border-none text-primary-fixed-dim font-code-sm text-code-sm outline-none cursor-pointer">
-                                    <option>ANY</option>
-                                    <option>120-140</option>
-                                    <option>160+</option>
-                                </select>
-                            </div>
-                            <button
-                                class="flex items-center gap-xs px-sm py-xs bg-surface-container-low border border-white/10 rounded-lg hover:border-primary-fixed-dim/50 transition-colors">
-                                <span class="material-symbols-outlined text-sm">tune</span>
-                                <span class="font-code-sm text-code-sm text-on-surface">ADVANCED_FILTER</span>
-                            </button>
+                <section class="pt-lg mb-xl">
+                    <div class="flex items-center justify-between gap-md mb-lg">
+                        <h1
+                            class="font-display-lg text-display-lg-mobile md:text-display-lg tracking-tighter text-on-surface min-w-0 truncate">
+                            MUSIC_<span class="text-primary-fixed-dim">LIBRARY</span>
+                        </h1>
+                        <div class="text-right shrink-0">
+                            <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Total Tracks</p>
+                            <p class="font-code-sm text-code-sm text-primary-fixed-dim" id="library_result_count">---
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex flex-row gap-sm md:gap-md">
+                        <!-- Search -->
+                        <div
+                            class="flex-1 min-w-0 flex items-center gap-xs px-sm md:px-md py-sm bg-surface-container-low border border-white/10 rounded-lg focus-within:border-primary-fixed-dim/50 transition-colors">
+                            <span class="material-symbols-outlined text-outline text-sm shrink-0">search</span>
+                            <input id="library_search_input" type="text" placeholder="Search title or artist..."
+                                class="bg-transparent border-none w-full min-w-0 truncate text-on-surface font-code-sm text-code-sm outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none placeholder:text-outline/50" />
+                        </div>
+                        <div
+                            class="relative shrink-0 flex items-center justify-center gap-xs w-11 md:w-auto px-0 md:px-md py-sm bg-surface-container-low border border-white/10 rounded-lg cursor-pointer">
+                            <span class="material-symbols-outlined text-outline text-sm pointer-events-none">sort</span>
+                            <span id="library_sort_label"
+                                class="hidden md:inline text-primary-fixed-dim font-code-sm text-code-sm pointer-events-none whitespace-nowrap">Newest</span>
+                            <select id="library_sort_select"
+                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer bg-surface-container-low text-on-surface"
+                                aria-label="Sort tracks" style="color-scheme: dark;">
+                                <option value="newest" class="bg-surface-container-low text-on-surface">Newest
+                                </option>
+                                <option value="oldest" class="bg-surface-container-low text-on-surface">Oldest
+                                </option>
+                                <option value="most_played" class="bg-surface-container-low text-on-surface">Most Played
+                                </option>
+                            </select>
                         </div>
                     </div>
                 </section>
                 <!-- Collection Grid -->
-                <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-md">
-                    <div
-                        class="glass-surface p-sm flex flex-col gap-md group hover:bg-surface-container transition-all duration-300 glow-cyan-hover">
-                        <div class="relative aspect-video w-full overflow-hidden border border-white/10">
-                            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                data-alt="Cyberpunk city skyline at night with intense neon blue and violet lighting. Digital art style with sharp geometric reflections and a sense of infinite depth. High resolution, 8k render, professional cinematic lighting."
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdVqLbTBU6JV0iuDnwM5PGFYhLTqqbz0iTj743UkLo5Pgtp4fCshFWKY9uQcDsP8xOqCrtAVqVK0cir5OhfQLKVKs0zsC_4WlKXnYMLgvo9mjUmEbhBHjr1VNKutvhHyzFzJsd5RohTSw0bIgeLv-rlLScdA01u8D_GA_dKS2cFKpQ1A8EFQk8PRl0vES8qJ_ZBRpCXRlYkPjgUdYso2KI5-MHjtz14h6LTPp753wPDab9mOKxCOm1" />
-                            <div
-                                class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    class="w-12 h-12 rounded-full bg-primary-fixed-dim text-black flex items-center justify-center glow-cyan">
-                                    <span class="material-symbols-outlined"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </button>
-                            </div>
-                            <div class="absolute top-xs right-xs flex gap-xs">
-                                <span
-                                    class="px-xs py-[2px] bg-black/80 font-label-caps text-[10px] text-primary-fixed-dim border border-primary-fixed-dim/30">128
-                                    BPM</span>
-                                <span
-                                    class="px-xs py-[2px] bg-black/80 font-label-caps text-[10px] text-on-secondary-container border border-secondary-container/30">F
-                                    MINOR</span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col gap-xs">
-                            <div class="flex justify-between items-start">
-                                <h3 class="font-headline-md text-[18px] text-on-surface truncate">NEURAL_DECAY_V2</h3>
-                                <span
-                                    class="px-xs py-[2px] rounded-sm bg-secondary-container/20 text-on-secondary-container font-label-caps text-[9px] border border-secondary-container/40">PROFESSIONAL</span>
-                            </div>
-                            <p class="font-code-sm text-code-sm text-outline">BY <span
-                                    class="text-primary-fixed-dim">AURA-X</span></p>
-                        </div>
-                        <div class="h-8 flex items-end gap-[2px] w-full">
-                            <div class="waveform-bar w-1 h-[40%]"></div>
-                            <div class="waveform-bar w-1 h-[60%]"></div>
-                            <div class="waveform-bar w-1 h-[90%]"></div>
-                            <div class="waveform-bar w-1 h-[70%]"></div>
-                            <div class="waveform-bar w-1 h-[85%]"></div>
-                            <div class="waveform-bar w-1 h-[40%]"></div>
-                            <div class="bg-outline-variant w-1 h-[50%]"></div>
-                            <div class="bg-outline-variant w-1 h-[30%]"></div>
-                            <div class="bg-outline-variant w-1 h-[45%]"></div>
-                            <div class="bg-outline-variant w-1 h-[20%]"></div>
-                            <div class="bg-outline-variant w-1 h-[60%]"></div>
-                            <div class="bg-outline-variant w-1 h-[80%]"></div>
-                            <div class="bg-outline-variant w-1 h-[30%]"></div>
-                            <div class="bg-outline-variant w-1 h-[50%]"></div>
-                            <div class="bg-outline-variant w-1 h-[20%]"></div>
-                            <div class="bg-outline-variant w-1 h-[40%]"></div>
-                            <div class="bg-outline-variant w-1 h-[10%]"></div>
-                            <div class="bg-outline-variant w-1 h-[35%]"></div>
-                            <div class="bg-outline-variant w-1 h-[55%]"></div>
-                            <div class="bg-outline-variant w-1 h-[25%]"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-sm">
-                            <button
-                                class="bg-primary-fixed-dim text-black font-label-caps text-label-caps py-sm flex items-center justify-center gap-xs glow-cyan hover:brightness-110 transition-all">
-                                <span class="material-symbols-outlined text-sm">cloud_download</span>
-                                DOWNLOAD WAV
-                            </button>
-                            <button
-                                class="border border-outline-variant font-label-caps text-label-caps py-sm text-on-surface hover:bg-surface-variant transition-colors flex items-center justify-center gap-xs">
-                                <span class="material-symbols-outlined text-sm">verified</span>
-                                LICENSE
-                            </button>
-                        </div>
-                    </div>
-                    <div
-                        class="glass-surface p-sm flex flex-col gap-md group hover:bg-surface-container transition-all duration-300 glow-cyan-hover">
-                        <div class="relative aspect-video w-full overflow-hidden border border-white/10">
-                            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                data-alt="Abstract neural network visualization with glowing fiber optic lines in cyan and magenta. Deep dark background with bokeh particles and depth of field. Professional studio quality, 3D digital render, intricate technical detail."
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGMNZdpnhLnoKZvKZ0MXdQOzvHkfMFbUFZ6kD4vRsA_4oS2n54QCQzChMAK0pBJdfpGkBYZTcfJLS5tp8Xn0Fpzyopb8wEU3o89DPrkajnM-keMc4dkvsWkNsAdKrktUtut1AeXBgZ3ymw5t8JNpnNWF7sS-jM58yN_nYTEZDm7KTvyIUgsyKOIrdixJRGMVgZt5mVVlMXYWt8NQGRLRgoapQgc5pZiytW57jau3DkYXkn57h4IeBI" />
-                            <div
-                                class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    class="w-12 h-12 rounded-full bg-primary-fixed-dim text-black flex items-center justify-center glow-cyan">
-                                    <span class="material-symbols-outlined"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </button>
-                            </div>
-                            <div class="absolute top-xs right-xs flex gap-xs">
-                                <span
-                                    class="px-xs py-[2px] bg-black/80 font-label-caps text-[10px] text-primary-fixed-dim border border-primary-fixed-dim/30">145
-                                    BPM</span>
-                                <span
-                                    class="px-xs py-[2px] bg-black/80 font-label-caps text-[10px] text-on-secondary-container border border-secondary-container/30">A#
-                                    MAJOR</span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col gap-xs">
-                            <div class="flex justify-between items-start">
-                                <h3 class="font-headline-md text-[18px] text-on-surface truncate">SILICON_DREAM_SQ</h3>
-                                <span
-                                    class="px-xs py-[2px] rounded-sm bg-surface-container-highest text-outline font-label-caps text-[9px] border border-white/5">PERSONAL</span>
-                            </div>
-                            <p class="font-code-sm text-code-sm text-outline">BY <span
-                                    class="text-primary-fixed-dim">CYBER_DYNE</span></p>
-                        </div>
-                        <div class="h-8 flex items-end gap-[2px] w-full">
-                            <div class="waveform-bar w-1 h-[20%]"></div>
-                            <div class="waveform-bar w-1 h-[40%]"></div>
-                            <div class="waveform-bar w-1 h-[30%]"></div>
-                            <div class="waveform-bar w-1 h-[50%]"></div>
-                            <div class="bg-outline-variant w-1 h-[80%]"></div>
-                            <div class="bg-outline-variant w-1 h-[60%]"></div>
-                            <div class="bg-outline-variant w-1 h-[90%]"></div>
-                            <div class="bg-outline-variant w-1 h-[70%]"></div>
-                            <div class="bg-outline-variant w-1 h-[45%]"></div>
-                            <div class="bg-outline-variant w-1 h-[35%]"></div>
-                            <div class="bg-outline-variant w-1 h-[25%]"></div>
-                            <div class="bg-outline-variant w-1 h-[55%]"></div>
-                            <div class="bg-outline-variant w-1 h-[75%]"></div>
-                            <div class="bg-outline-variant w-1 h-[40%]"></div>
-                            <div class="bg-outline-variant w-1 h-[65%]"></div>
-                            <div class="bg-outline-variant w-1 h-[85%]"></div>
-                            <div class="bg-outline-variant w-1 h-[30%]"></div>
-                            <div class="bg-outline-variant w-1 h-[20%]"></div>
-                            <div class="bg-outline-variant w-1 h-[40%]"></div>
-                            <div class="bg-outline-variant w-1 h-[10%]"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-sm">
-                            <button
-                                class="bg-primary-fixed-dim text-black font-label-caps text-label-caps py-sm flex items-center justify-center gap-xs glow-cyan hover:brightness-110 transition-all">
-                                <span class="material-symbols-outlined text-sm">cloud_download</span>
-                                DOWNLOAD WAV
-                            </button>
-                            <button
-                                class="border border-outline-variant font-label-caps text-label-caps py-sm text-on-surface hover:bg-surface-variant transition-colors flex items-center justify-center gap-xs">
-                                <span class="material-symbols-outlined text-sm">verified</span>
-                                LICENSE
-                            </button>
-                        </div>
-                    </div>
-                    <div
-                        class="glass-surface p-sm flex flex-col gap-md group hover:bg-surface-container transition-all duration-300 glow-cyan-hover">
-                        <div class="relative aspect-video w-full overflow-hidden border border-white/10">
-                            <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                data-alt="Macro photography of liquid obsidian swirls with iridescent cyan highlights. Technical HUD overlay with data readouts and waveform shapes. High contrast, sleek dark aesthetics, professional commercial photography style."
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBemj3UJtRNn4O7iPcd2JhAhsgQvL_3WDrC5XsUi4c4EPqrxqn_uB0WzZ_OfM8s4MU6-flYhQ60fmZY429B0KGpvtP6WSBDfU6VTxs7tI2HBIv_2uWoIB4oS2ejtNKL41BOX5JFPgi0WrJEqoFnrSz3I-_o2TVsnXCw2zDS56AZ6Sv6vBhokRGEmtQ6YAxVZwUPZFBuCojEGHjJY5IOtep5M1tdhtt_NZxH8vlwENyu7x3QNwrOQx_I" />
-                            <div
-                                class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                    class="w-12 h-12 rounded-full bg-primary-fixed-dim text-black flex items-center justify-center glow-cyan">
-                                    <span class="material-symbols-outlined"
-                                        style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                </button>
-                            </div>
-                            <div class="absolute top-xs right-xs flex gap-xs">
-                                <span
-                                    class="px-xs py-[2px] bg-black/80 font-label-caps text-[10px] text-primary-fixed-dim border border-primary-fixed-dim/30">102
-                                    BPM</span>
-                                <span
-                                    class="px-xs py-[2px] bg-black/80 font-label-caps text-[10px] text-on-secondary-container border border-secondary-container/30">C
-                                    MAJOR</span>
-                            </div>
-                        </div>
-                        <div class="flex flex-col gap-xs">
-                            <div class="flex justify-between items-start">
-                                <h3 class="font-headline-md text-[18px] text-on-surface truncate">GLITCH_HARMONICS</h3>
-                                <span
-                                    class="px-xs py-[2px] rounded-sm bg-secondary-container/20 text-on-secondary-container font-label-caps text-[9px] border border-secondary-container/40">PROFESSIONAL</span>
-                            </div>
-                            <p class="font-code-sm text-code-sm text-outline">BY <span
-                                    class="text-primary-fixed-dim">SYNTH_SOUL</span></p>
-                        </div>
-                        <div class="h-8 flex items-end gap-[2px] w-full">
-                            <div class="waveform-bar w-1 h-[80%]"></div>
-                            <div class="waveform-bar w-1 h-[60%]"></div>
-                            <div class="waveform-bar w-1 h-[40%]"></div>
-                            <div class="waveform-bar w-1 h-[70%]"></div>
-                            <div class="waveform-bar w-1 h-[50%]"></div>
-                            <div class="bg-outline-variant w-1 h-[30%]"></div>
-                            <div class="bg-outline-variant w-1 h-[65%]"></div>
-                            <div class="bg-outline-variant w-1 h-[45%]"></div>
-                            <div class="bg-outline-variant w-1 h-[85%]"></div>
-                            <div class="bg-outline-variant w-1 h-[25%]"></div>
-                            <div class="bg-outline-variant w-1 h-[55%]"></div>
-                            <div class="bg-outline-variant w-1 h-[75%]"></div>
-                            <div class="bg-outline-variant w-1 h-[40%]"></div>
-                            <div class="bg-outline-variant w-1 h-[90%]"></div>
-                            <div class="bg-outline-variant w-1 h-[20%]"></div>
-                            <div class="bg-outline-variant w-1 h-[40%]"></div>
-                            <div class="bg-outline-variant w-1 h-[60%]"></div>
-                            <div class="bg-outline-variant w-1 h-[80%]"></div>
-                            <div class="bg-outline-variant w-1 h-[30%]"></div>
-                            <div class="bg-outline-variant w-1 h-[10%]"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-sm">
-                            <button
-                                class="bg-primary-fixed-dim text-black font-label-caps text-label-caps py-sm flex items-center justify-center gap-xs glow-cyan hover:brightness-110 transition-all">
-                                <span class="material-symbols-outlined text-sm">cloud_download</span>
-                                DOWNLOAD WAV
-                            </button>
-                            <button
-                                class="border border-outline-variant font-label-caps text-label-caps py-sm text-on-surface hover:bg-surface-variant transition-colors flex items-center justify-center gap-xs">
-                                <span class="material-symbols-outlined text-sm">verified</span>
-                                LICENSE
-                            </button>
-                        </div>
-                    </div>
-                </section>
-                <!-- Dashboard Stats Section -->
-                <section class="mt-xl grid grid-cols-1 md:grid-cols-4 gap-md">
-                    <div class="glass-surface p-md flex flex-col gap-xs">
-                        <p class="font-label-caps text-label-caps text-outline">TOTAL_ASSETS</p>
-                        <p class="font-display-lg text-[32px] text-on-surface">1,248</p>
-                    </div>
-                    <div class="glass-surface p-md flex flex-col gap-xs">
-                        <p class="font-label-caps text-label-caps text-outline">STORAGE_USED</p>
-                        <p class="font-display-lg text-[32px] text-primary-fixed-dim">12.4 GB</p>
-                    </div>
-                    <div class="glass-surface p-md flex flex-col gap-xs">
-                        <p class="font-label-caps text-label-caps text-outline">NEURAL_TOKENS</p>
-                        <p class="font-display-lg text-[32px] text-on-secondary-container">8,500</p>
-                    </div>
-                    <div class="glass-surface p-md flex flex-col gap-xs">
-                        <p class="font-label-caps text-label-caps text-outline">ACTIVE_LICENSES</p>
-                        <p class="font-display-lg text-[32px] text-on-surface">42</p>
-                    </div>
+                <section id="library_track_grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+                    <div class="col-span-full text-center text-outline py-12 font-code-sm">Loading tracks...</div>
                 </section>
 
             </div>
@@ -1485,365 +1267,99 @@
 
         <!-- START page_creator_profile -->
         <section id="page_creator_profile" class="inner-page hidden w-full relative pt-20 pb-32">
-            <div
-                class="max-w-7xl mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 lg:grid-cols-12 gap-xl">
-                <aside class="lg:col-span-4 space-y-lg">
-                    <div class="space-y-md">
-                        <h2 class="font-headline-md text-headline-md text-on-surface">System Status</h2>
-                        <div class="glass-card p-lg rounded-xl space-y-lg relative overflow-hidden">
-                            <div class="absolute top-0 right-0 p-lg">
-                                <span class="flex h-2 w-2">
-                                    <span
-                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed-dim opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-primary-fixed-dim"></span>
-                                </span>
-                            </div>
-                            <div class="space-y-sm">
-                                <p class="font-label-caps text-label-caps text-outline">LATEST UPDATE</p>
-                                <h4 class="font-bold text-primary-fixed-dim">v2.04 Neural Layer</h4>
-                                <p class="text-body-base text-on-surface-variant text-sm">Improved Bass Clarity and Suno
-                                    link optimization for sub-harmonic resonance stabilization across industrial
-                                    spectra.
-                                </p>
-                            </div>
-                            <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-                                <div class="h-full bg-primary-fixed-dim w-3/4 shadow-[0_0_10px_rgba(0,219,233,0.5)]">
-                                </div>
-                            </div>
-                            <div class="flex justify-between text-[11px] font-code-sm text-outline">
-                                <span>REFINEMENT PROGRESS</span>
-                                <span>75%</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="space-y-md">
-                        <h2 class="font-headline-md text-headline-md text-on-surface">Recently Trained On</h2>
-                        <div class="space-y-gutter">
-                            <div class="flex items-center gap-md group cursor-pointer">
-                                <div
-                                    class="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center text-primary-fixed-dim group-hover:scale-110 transition-transform">
-                                    <span class="material-symbols-outlined">waves</span>
-                                </div>
-                                <div>
-                                    <h5
-                                        class="font-bold text-on-surface group-hover:text-primary-fixed-dim transition-colors">
-                                        780nm Waveform Set</h5>
-                                    <p class="text-xs text-outline">Batch #8819 • 4h ago</p>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-md group cursor-pointer">
-                                <div
-                                    class="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
-                                    <span class="material-symbols-outlined">settings_input_component</span>
-                                </div>
-                                <div>
-                                    <h5 class="font-bold text-on-surface group-hover:text-secondary transition-colors">
-                                        Moog
-                                        Mother-32 Samples</h5>
-                                    <p class="text-xs text-outline">Batch #8755 • 1d ago</p>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-md group cursor-pointer">
-                                <div
-                                    class="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center text-tertiary-fixed-dim group-hover:scale-110 transition-transform">
-                                    <span class="material-symbols-outlined">grid_view</span>
-                                </div>
-                                <div>
-                                    <h5
-                                        class="font-bold text-on-surface group-hover:text-tertiary-fixed-dim transition-colors">
-                                        Atmospheric Decay IRs</h5>
-                                    <p class="text-xs text-outline">Batch #8642 • 2d ago</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-                <div class="lg:col-span-8 overflow-y-auto">
+            <div class="px-margin-mobile md:px-margin-desktop">
 
-                    <!-- Profile Header -->
-                    <section class="relative mt-md">
-                        <div class="h-80 w-full rounded-xl overflow-hidden relative group">
-                            <div
-                                class="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent">
-                            </div>
+                <!-- Profile Header -->
+                <section class="pt-lg flex flex-col md:flex-row md:items-center gap-lg mb-xl">
+                    <div class="flex items-start gap-5">
+                        <div
+                            class="w-24 h-24 rounded-xl cyber-glow-border overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
+                            <span class="material-symbols-outlined text-5xl text-primary-fixed-dim">person</span>
                         </div>
-                        <div class="flex flex-col md:flex-row items-end gap-lg -mt-32 relative z-10 px-md pb-xs">
-                            <div class="relative">
-                                <div
-                                    class="w-48 h-48 rounded-xl cyber-glow-border overflow-hidden bg-surface-container shadow-2xl">
-                                    <img class="w-full h-full object-cover"
-                                        data-alt="A high-fidelity digital rendering of a sleek, chrome-finished AI entity named Aura-X. The entity features glowing cyan neural pathways visible under a translucent synthetic skin. The character is set against a dark, industrial studio background filled with floating holographic audio visualizers and geometric patterns. Atmospheric and cinematic lighting highlights the metallic textures."
-                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6w1nrogbYDYuxOP8n167w0z5FG17UWOkAzVeX7sxwEDcoqamO66Qup6A_LcYRw7ngPPtDUon7wNfVMK1YZLJ_NXVmWIhNZeFdFRNIyHz15NwV5pZrUkXSkDB6SDWzTggcpdY2PYUz2avRh3uEiauDyWNGyea7vZoNl6vmZ6-TaEin4TD9SxBd9wAfQ7aYTjL4oErp9ImsTWJ0ByiKtvKBe_ZOEhN6v_aICSpJZQEIo7FoYinZ10jM" />
-                                </div>
-                                <div
-                                    class="absolute -bottom-2 -right-2 bg-primary-container text-on-primary-container p-1 rounded-full flex items-center justify-center border-4 border-background">
-                                    <span class="material-symbols-outlined text-[16px]"
-                                        style="font-variation-settings: 'FILL' 1;">verified</span>
-                                </div>
-                            </div>
-                            <div class="flex-1 space-y-xs pb-base">
-                                <div class="flex items-center gap-sm flex-wrap">
-                                    <h1
-                                        class="font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface tracking-tight">
-                                        Aura-X</h1>
-                                    <span
-                                        class="px-sm py-1 rounded-lg bg-on-secondary-fixed-variant/20 text-secondary font-code-sm text-code-sm border border-secondary/30">Verified
-                                        AI Model</span>
-                                </div>
-                                <p class="text-on-surface-variant font-body-base text-body-base max-w-xl">
-                                    Specialized in cinematic synthesis and high-energy industrial soundscapes. Pushing
-                                    the
-                                    boundaries of neural audio generation through complex frequency modulation.
+                        <div class="flex-1 min-w-0">
+                            <h1
+                                class="font-display-lg text-display-lg-mobile md:text-display-lg tracking-tighter text-on-surface mb-xs truncate">
+                                MY_<span class="text-primary-fixed-dim">PROFILE</span>
+                            </h1>
+                            <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest">FLO Address</p>
+                            <div class="flex items-center gap-xs">
+                                <p id="profile_flo_id_full"
+                                    class="font-code-sm text-code-sm text-primary-fixed-dim truncate flex-1 min-w-0">---
                                 </p>
-                            </div>
-                            <div class="flex gap-sm pb-base">
-                                <button
-                                    class="bg-primary-container text-on-primary-container px-lg py-sm rounded-lg font-bold hover:shadow-[0_0_20px_rgba(0,219,233,0.3)] transition-all active:scale-95 flex items-center gap-xs">
-                                    <span class="material-symbols-outlined">add</span>
-                                    Follow
-                                </button>
-                                <button
-                                    class="border border-outline-variant text-on-surface px-lg py-sm rounded-lg font-bold hover:bg-white/5 transition-all active:scale-95 flex items-center gap-xs">
-                                    <span class="material-symbols-outlined">share</span>
-                                    Share
+                                <button id="profile_copy_id_btn" type="button"
+                                    class="shrink-0 text-outline hover:text-primary-fixed-dim transition-colors"
+                                    title="Copy address">
+                                    <span class="material-symbols-outlined text-sm">content_copy</span>
                                 </button>
                             </div>
+
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- Content Grid: Liked Songs  + Stats -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-xl">
+
+                    <!-- Liked Songs -->
+                    <section class="lg:col-span-8 min-w-0">
+                        <div class="flex justify-between items-end w-full mb-lg">
+                            <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-primary-fixed-dim"
+                                    style="font-variation-settings:'FILL' 1;">
+                                    favorite
+                                </span>
+                                Liked Songs
+                            </h2>
+
+                            <p id="profile_liked_count"
+                                class="font-code-sm text-code-sm text-outline uppercase tracking-widest">
+                                --- TRACKS
+                            </p>
+                        </div>
+                        <div id="profile_liked_grid" class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+                            <div class="col-span-full text-center text-outline py-12 font-code-sm">Loading liked
+                                songs...</div>
                         </div>
                     </section>
 
-                    <!-- Profile Content Area -->
-                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-xl">
-                        <!-- Left: Track Catalog -->
-                        <section class="lg:col-span-8 space-y-lg">
-                            <div class="flex items-center justify-between">
-                                <h2 class="font-headline-md text-headline-md text-on-surface">Track Catalog</h2>
-                                <div class="flex items-center gap-md text-outline font-label-caps text-label-caps">
-                                    <span class="text-primary-fixed-dim cursor-pointer">LATEST</span>
-                                    <span class="hover:text-on-surface transition-colors cursor-pointer">POPULAR</span>
-                                    <span
-                                        class="hover:text-on-surface transition-colors cursor-pointer">CINEMATIC</span>
+                    <!-- Sidebar: Listening Stats -->
+                    <aside class="lg:col-span-4 space-y-lg">
+                        <div class="space-y-md">
+                            <h2 class="font-headline-md text-headline-md text-on-surface">Listening Stats</h2>
+                            <div class="glass-card p-lg rounded-xl grid grid-cols-3 gap-md">
+                                <div class="flex flex-col items-center text-center">
+                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
+                                        Liked Tracks</p>
+                                    <p class="font-display-lg text-[28px] text-primary-fixed-dim"
+                                        id="profile_stat_liked">0</p>
+                                </div>
+                                <div class="flex flex-col items-center text-center">
+                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
+                                        Market Plays
+                                    </p>
+
+                                    <p id="profile_stat_market" class="font-display-lg text-[28px] text-on-surface">
+                                        0
+                                    </p>
+                                </div>
+                                <div class="flex flex-col items-center text-center">
+                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
+                                        Suno Plays</p>
+                                    <p class="font-display-lg text-[28px] text-on-surface" id="profile_stat_plays">0</p>
+                                </div>
+                                <div class="col-span-3 pt-xs border-t border-white/5">
+                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
+                                        Top Artist</p>
+                                    <p class="font-code-sm text-code-sm text-secondary-fixed-dim truncate"
+                                        id="profile_stat_artist">---</p>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-                                <div class="glass-card p-sm rounded-xl flex gap-md group relative">
-                                    <div class="w-24 h-24 rounded-lg overflow-hidden relative flex-shrink-0">
-                                        <img class="w-full h-full object-cover"
-                                            data-alt="A macro shot of glowing fiber optic cables in electric blue and violet, arranged in a swirling, vortex-like pattern. The lighting is low and moody, creating a sense of high-speed data transmission. The image has a cinematic depth of field with sharp focus on the central nexus of light. Modern tech-noir aesthetic."
-                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTsWZUyf7uNIGE4umjKw8gn2Pzyunxb5Y9VFCfy7FzN9kFoP3iBer7JimsUMd16imBFa48ZfD1cHn3U0TQrkL-P4JbBR0ireEM9P_-LaZaBFv3Fm9EZ3s_Gk5TFODR-aGj6sTL-ctovGrqYMgednfcTIimw1e4QMtbJ2yZ5uk9fR8hEXhavFdqZ0HLNnUAnfL3vIc_sEfRjELldTqZOEQhRuYYYENj9Ia7poUnlH4b2wsi2FUEr8rd" />
-                                        <button
-                                            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-primary-fixed-dim text-4xl">play_circle</span>
-                                        </button>
-                                    </div>
-                                    <div class="flex-1 py-xs flex flex-col justify-between">
-                                        <div>
-                                            <div class="flex justify-between items-start">
-                                                <h4 class="font-bold text-on-surface">Neon Pulse</h4>
-                                                <span
-                                                    class="text-secondary font-code-sm text-label-caps border border-secondary/20 px-2 rounded">AI-V1</span>
-                                                <span
-                                                    class="text-[10px] font-code-sm text-primary-fixed-dim border border-primary-fixed-dim/30 px-1.5 rounded ml-2">SUNO
-                                                    STORAGE</span>
-                                            </div>
-                                            <p class="text-outline text-xs mt-1">Industrial • Glitch</p>
-                                        </div>
-                                        <div
-                                            class="flex items-center gap-md font-code-sm text-xs text-on-surface-variant">
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">speed</span> 128
-                                                BPM</span>
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">music_note</span>
-                                                Am</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="glass-card p-sm rounded-xl flex gap-md group relative">
-                                    <div class="w-24 h-24 rounded-lg overflow-hidden relative flex-shrink-0">
-                                        <img class="w-full h-full object-cover"
-                                            data-alt="An abstract visualization of a neural network in 3D space, featuring glowing nodes connected by pulsating cyan threads. The background is a void of absolute black, making the luminous network pop. Subtle glitch effects and chromatic aberration at the edges add a technical, digital mastery feel. High resolution, 8k rendering."
-                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfa0AjqYYge-VrrYZ2aWc2H_Zx2LFh5iK-HVXToOISPw1g0YrimiBi19VOQBKxufw4oOgJlLENyULYvIi_7N0j4BYdC-MB2M5K17Zt-84EkBoiqgk5QjqTWkxcbWxPRF9I9yeFw-gO6ph-XW0sOTLjY5DbHDo9JJTESyeDAybo2yWpy0zLZ4JnuBEhNElu0n0UhvU5dHxP3p1VAQ11NjhgZOa8eN3a6J9Y0Jyv4Xfrbw9WezM9UVPE" />
-                                        <button
-                                            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-primary-fixed-dim text-4xl">play_circle</span>
-                                        </button>
-                                    </div>
-                                    <div class="flex-1 py-xs flex flex-col justify-between">
-                                        <div>
-                                            <div class="flex justify-between items-start">
-                                                <h4 class="font-bold text-on-surface">Kinetics</h4>
-                                                <span
-                                                    class="text-secondary font-code-sm text-label-caps border border-secondary/20 px-2 rounded">BETA</span>
-                                                <span
-                                                    class="text-[10px] font-code-sm text-primary-fixed-dim border border-primary-fixed-dim/30 px-1.5 rounded ml-2">SUNO
-                                                    STORAGE</span>
-                                            </div>
-                                            <p class="text-outline text-xs mt-1">Techno • Minimal</p>
-                                        </div>
-                                        <div
-                                            class="flex items-center gap-md font-code-sm text-xs text-on-surface-variant">
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">speed</span> 140
-                                                BPM</span>
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">music_note</span>
-                                                F#m</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="glass-card p-sm rounded-xl flex gap-md group relative">
-                                    <div class="w-24 h-24 rounded-lg overflow-hidden relative flex-shrink-0">
-                                        <img class="w-full h-full object-cover"
-                                            data-alt="A cinematic view of a futuristic city grid at night, rendered in deep blues and vibrant cyan highlights. The city structure resembles a computer motherboard with light-trails moving like digital signals. Atmospheric haze and fog settle between the skyscrapers, creating a moody, deep-tech atmosphere. Cinematic lighting."
-                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAlVhyNd5JRzK4izrd7zSOKheE_1_mbz9vi5mparj94yNcKsJvFLYWu4pBgAEuTX9I2Ma23DL5O7iVG15jAnhk9xJhny2LDllphwN666gADAUvuFbAh3ccNkanckHdh04SPUiI2R0u8PbZ-BafmSK2YaLGN5HTcHgrJgGXLiEuJdIDI0tgcjuYAVw-UsCHGmgZKSuRUCG9oC4xlLdM2q2VCHKIYFY61nu2K8OWE9Ms5hPTu4lTsSUK4" />
-                                        <button
-                                            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-primary-fixed-dim text-4xl">play_circle</span>
-                                        </button>
-                                    </div>
-                                    <div class="flex-1 py-xs flex flex-col justify-between">
-                                        <div>
-                                            <div class="flex justify-between items-start">
-                                                <h4 class="font-bold text-on-surface">Vortex</h4>
-                                                <span
-                                                    class="text-secondary font-code-sm text-label-caps border border-secondary/20 px-2 rounded">AI-V2</span>
-                                                <span
-                                                    class="text-[10px] font-code-sm text-primary-fixed-dim border border-primary-fixed-dim/30 px-1.5 rounded ml-2">SUNO
-                                                    STORAGE</span>
-                                            </div>
-                                            <p class="text-outline text-xs mt-1">Ambient • Drone</p>
-                                        </div>
-                                        <div
-                                            class="flex items-center gap-md font-code-sm text-xs text-on-surface-variant">
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">speed</span> 90 BPM</span>
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">music_note</span> C</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="glass-card p-sm rounded-xl flex gap-md group relative">
-                                    <div class="w-24 h-24 rounded-lg overflow-hidden relative flex-shrink-0">
-                                        <img class="w-full h-full object-cover"
-                                            data-alt="Close-up detail of a futuristic audio console with glowing touch-sensitive pads and holographic faders. The interface emits a soft cyan glow that reflects off metallic surfaces. The background is blurred, focusing all attention on the intricate digital interface. Professional studio setting, high-tech engineering aesthetic."
-                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfoCGgaIEZ5t2PoKE4ESjHRwA9Qt3Iwbxy6K1xbRnFzTrw7KX_9ouf7QSIWw4MxosPvnRj4j5rpeJjZZji7U9CW2xAvQPiGFtDXWyCkxiqQuza_Z0XQLECERqi3xdqW7u5IKb0zQ015n4FedviZBD4rXN-sftWVzss1VFxLMaT7101imi_o-cy3mweqMF7RmOkWu1toBuOC0XELZyN6Sgn-xU_GZM7Ai_adUEOXSQLfyqtMdMypu9s" />
-                                        <button
-                                            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <span
-                                                class="material-symbols-outlined text-primary-fixed-dim text-4xl">play_circle</span>
-                                        </button>
-                                    </div>
-                                    <div class="flex-1 py-xs flex flex-col justify-between">
-                                        <div>
-                                            <div class="flex justify-between items-start">
-                                                <h4 class="font-bold text-on-surface">Synthesis</h4>
-                                                <span
-                                                    class="text-secondary font-code-sm text-label-caps border border-secondary/20 px-2 rounded">CORE</span>
-                                                <span
-                                                    class="text-[10px] font-code-sm text-primary-fixed-dim border border-primary-fixed-dim/30 px-1.5 rounded ml-2">SUNO
-                                                    STORAGE</span>
-                                            </div>
-                                            <p class="text-outline text-xs mt-1">Future Bass</p>
-                                        </div>
-                                        <div
-                                            class="flex items-center gap-md font-code-sm text-xs text-on-surface-variant">
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">speed</span> 160
-                                                BPM</span>
-                                            <span class="flex items-center gap-1"><span
-                                                    class="material-symbols-outlined text-xs">music_note</span> G</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Load More / Explore -->
-                            <button
-                                class="w-full py-md glass-card rounded-xl font-label-caps text-label-caps text-outline hover:text-primary-fixed-dim flex items-center justify-center gap-sm transition-all group">
-                                ACCESS FULL DATASET
-                                <span
-                                    class="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                            </button>
-                        </section>
-                        <!-- Right: Recent Activity & Model Status -->
-                        <aside class="lg:col-span-4 space-y-lg">
-                            <div class="space-y-md">
-                                <h2 class="font-headline-md text-headline-md text-on-surface">System Status</h2>
-                                <div class="glass-card p-lg rounded-xl space-y-lg relative overflow-hidden">
-                                    <div class="absolute top-0 right-0 p-lg">
-                                        <span class="flex h-2 w-2">
-                                            <span
-                                                class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary-fixed-dim opacity-75"></span>
-                                            <span
-                                                class="relative inline-flex rounded-full h-2 w-2 bg-primary-fixed-dim"></span>
-                                        </span>
-                                    </div>
-                                    <div class="space-y-sm">
-                                        <p class="font-label-caps text-label-caps text-outline">LATEST UPDATE</p>
-                                        <h4 class="font-bold text-primary-fixed-dim">v2.04 Neural Layer</h4>
-                                        <p class="text-body-base text-on-surface-variant text-sm">Improved Bass Clarity
-                                            and
-                                            Suno link optimization for sub-harmonic resonance stabilization across
-                                            industrial spectra.</p>
-                                    </div>
-                                    <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-                                        <div
-                                            class="h-full bg-primary-fixed-dim w-3/4 shadow-[0_0_10px_rgba(0,219,233,0.5)]">
-                                        </div>
-                                    </div>
-                                    <div class="flex justify-between text-[11px] font-code-sm text-outline">
-                                        <span>REFINEMENT PROGRESS</span>
-                                        <span>75%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="space-y-md">
-                                <h2 class="font-headline-md text-headline-md text-on-surface">Recently Trained On</h2>
-                                <div class="space-y-gutter">
-                                    <div class="flex items-center gap-md group cursor-pointer">
-                                        <div
-                                            class="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center text-primary-fixed-dim group-hover:scale-110 transition-transform">
-                                            <span class="material-symbols-outlined">waves</span>
-                                        </div>
-                                        <div>
-                                            <h5
-                                                class="font-bold text-on-surface group-hover:text-primary-fixed-dim transition-colors">
-                                                780nm Waveform Set</h5>
-                                            <p class="text-xs text-outline">Batch #8819 • 4h ago</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-md group cursor-pointer">
-                                        <div
-                                            class="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
-                                            <span class="material-symbols-outlined">settings_input_component</span>
-                                        </div>
-                                        <div>
-                                            <h5
-                                                class="font-bold text-on-surface group-hover:text-secondary transition-colors">
-                                                Moog Mother-32 Samples</h5>
-                                            <p class="text-xs text-outline">Batch #8755 • 1d ago</p>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-md group cursor-pointer">
-                                        <div
-                                            class="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center text-tertiary-fixed-dim group-hover:scale-110 transition-transform">
-                                            <span class="material-symbols-outlined">grid_view</span>
-                                        </div>
-                                        <div>
-                                            <h5
-                                                class="font-bold text-on-surface group-hover:text-tertiary-fixed-dim transition-colors">
-                                                Atmospheric Decay IRs</h5>
-                                            <p class="text-xs text-outline">Batch #8642 • 2d ago</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </aside>
-                    </div>
+                        </div>
+                    </aside>
 
                 </div>
+
             </div>
         </section>
         <!-- END page_creator_profile -->
@@ -2416,8 +1932,7 @@
                 </div>
                 <div class="flex flex-col items-center ml-xs">
                     <button id="player_like_btn"
-                        class="material-symbols-outlined text-outline hover:text-primary-fixed-dim"
-                        >
+                        class="material-symbols-outlined text-outline hover:text-primary-fixed-dim">
                         <span id="player_heart">favorite</span>
                     </button>
                 </div>
@@ -2599,7 +2114,7 @@
             <span class="font-code-sm text-[9px] uppercase tracking-wider">Home</span>
         </button>
         <button onclick="routeTo('page_library')"
-            class="flex flex-col items-center justify-center gap-1 w-full h-full text-on-surface-variant transition-colors opacity-50 pointer-events-none cursor-not-allowed">
+            class="flex flex-col items-center justify-center gap-1 w-full h-full text-on-surface-variant transition-colors">
             <span class="material-symbols-outlined text-2xl">library_music</span>
             <span class="font-code-sm text-[9px] uppercase tracking-wider">Library</span>
         </button>
@@ -2609,7 +2124,7 @@
             <span class="font-code-sm text-[9px] uppercase tracking-wider">Dashboard</span>
         </button>
         <button onclick="routeTo('page_creator_profile')"
-            class="flex flex-col items-center justify-center gap-1 w-full h-full text-on-surface-variant transition-colors opacity-50 pointer-events-none cursor-not-allowed">
+            class="flex flex-col items-center justify-center gap-1 w-full h-full text-on-surface-variant transition-colors">
             <span class="material-symbols-outlined text-2xl">person</span>
             <span class="font-code-sm text-[9px] uppercase tracking-wider">Profile</span>
         </button>

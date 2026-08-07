@@ -486,6 +486,234 @@ function updateLyricsUI(lyricsText) {
 
 let TRACKS = [];
 
+//  Shared Track Card Renderer 
+function trackCardHtml(t, gridPrefix) {
+  const title = t.title || "Unknown Title";
+  const artist = t.artist || "Unknown Artist";
+  const cover = t.img || t.cover || "";
+  const audio = t.audio || "";
+  const id = t.id || "";
+
+  const safeTitle = title.replace(/'/g, "\\'");
+  const safeArtist = artist.replace(/'/g, "\\'");
+
+  return `
+        <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
+            onclick="playTrack('${audio}', '${safeTitle}', '${safeArtist}', '${cover}')">
+            <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
+                <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    alt="${title} by ${artist}"
+                    src="${cover}" />
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
+                        <span class="material-symbols-outlined text-4xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                    </div>
+                </div>
+                <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
+                    <span class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO AI MUSIC</span>
+                </div>
+            </div>
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h3 class="font-headline-md text-xl text-on-surface mb-xs">${title}</h3>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics: <span class="text-secondary-fixed-dim">HUMAN/AI</span></span>
+                        <span class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music: <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
+                <div class="flex flex-col overflow-hidden max-w-[70%]">
+                    <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Artist</span>
+                    <span class="font-code-sm text-xs text-primary-fixed-dim truncate" title="${artist}">${artist}</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex flex-col items-center text-center">
+                        <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Market Plays</span>
+                        <span id="marketplays-${gridPrefix}-${id}" class="font-code-sm text-sm text-primary-fixed-dim" title="Native platform plays">---</span>
+                    </div>
+                    <div class="flex flex-col items-center text-center">
+                        <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Suno Plays</span>
+                        <span id="sunoplays-${gridPrefix}-${id}" class="font-code-sm text-sm text-on-surface text-primary-fixed-dim" title="Loading live stats...">${t.playCount ? t.playCount.toLocaleString() : "---"}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function emptyStateHtml(message) {
+  return `<div class="col-span-full text-center text-outline py-12 font-code-sm">${message}</div>`;
+}
+
+// ─── Library Page: search + sort over all uploaded tracks ──────────
+function renderLibrary() {
+  const grid = document.getElementById("library_track_grid");
+  if (!grid) return; 
+
+  const searchInput = document.getElementById("library_search_input");
+  const sortSelect = document.getElementById("library_sort_select");
+  const query = (searchInput?.value || "").trim().toLowerCase();
+  const sortBy = sortSelect?.value || "newest";
+
+  let list = TRACKS.filter((t) => {
+    if (!query) return true;
+    return (
+      (t.title || "").toLowerCase().includes(query) ||
+      (t.artist || "").toLowerCase().includes(query)
+    );
+  });
+
+ 
+  list = list.slice();
+  if (sortBy === "oldest") {
+    list.reverse();
+  } else if (sortBy === "most_played") {
+    list.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+  }
+
+  const countEl = document.getElementById("library_result_count");
+  if (countEl) countEl.textContent = String(list.length);
+
+  if (list.length === 0) {
+    grid.innerHTML = emptyStateHtml(
+      TRACKS.length === 0
+        ? "No tracks in the library yet. Upload one to get started!"
+        : "No tracks match your search.",
+    );
+    return;
+  }
+
+  grid.innerHTML = list.map((t) => trackCardHtml(t, "library")).join("");
+  setTimeout(() => fetchLivePlaysQueue(list, "library"), 300);
+}
+window.renderLibrary = renderLibrary;
+
+// ─── Profile Page: this user's liked songs ──────────────────────────
+function updateProfileStats(likedTracks) {
+  const likedEl = document.getElementById("profile_stat_liked");
+  const playsEl = document.getElementById("profile_stat_plays");
+  const artistEl = document.getElementById("profile_stat_artist");
+  const marketEl = document.getElementById("profile_stat_market");
+
+  if (likedEl) likedEl.textContent = String(likedTracks.length);
+
+  const totalPlays = likedTracks.reduce((sum, t) => sum + (t.playCount || 0), 0);
+  if (playsEl) playsEl.textContent = totalPlays.toLocaleString();
+
+  const totalMarketPlays = likedTracks.reduce(
+    (sum, t) => sum + (t.marketPlayCount || 0),
+    0
+  );
+
+  if (marketEl) {
+    marketEl.textContent = totalMarketPlays.toLocaleString();
+  }
+
+  if (artistEl) {
+    if (likedTracks.length === 0) {
+      artistEl.textContent = "---";
+    } else {
+      const counts = {};
+      likedTracks.forEach((t) => {
+        const a = t.artist || "Unknown";
+        counts[a] = (counts[a] || 0) + 1;
+      });
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+      artistEl.textContent = top ? top[0] : "---";
+    }
+  }
+}
+
+async function loadLikedSongs() {
+  const grid = document.getElementById("profile_liked_grid");
+  if (!grid) return; 
+
+  const idEl = document.getElementById("profile_flo_id");
+  const idFullEl = document.getElementById("profile_flo_id_full");
+  const hasFloId = typeof floGlobals !== "undefined" && !!floGlobals.myFloID;
+
+  if (idEl) idEl.textContent = hasFloId ? floGlobals.myFloID : "Not signed in";
+  if (idFullEl) idFullEl.textContent = hasFloId ? floGlobals.myFloID : "---";
+
+  if (!hasFloId) {
+    grid.innerHTML = emptyStateHtml("Sign in to see your liked songs.");
+    updateProfileStats([]);
+    return;
+  }
+
+  grid.innerHTML = emptyStateHtml("Loading liked songs...");
+
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/api/liked-tracks?user=${encodeURIComponent(floGlobals.myFloID)}`,
+    );
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "Failed to load likes");
+
+    const likedIds = new Set(data.trackIds || []);
+    const likedTracks = TRACKS.filter((t) => likedIds.has(t.id));
+
+    const countEl = document.getElementById("profile_liked_count");
+    if (countEl)
+      countEl.textContent = `${likedTracks.length} TRACK${likedTracks.length === 1 ? "" : "S"}`;
+
+    updateProfileStats(likedTracks);
+
+    if (likedTracks.length === 0) {
+      grid.innerHTML = emptyStateHtml(
+        "No liked songs yet. Tap the heart on a track to like it.",
+      );
+      return;
+    }
+
+    grid.innerHTML = likedTracks.map((t) => trackCardHtml(t, "profile")).join("");
+    setTimeout(() => fetchLivePlaysQueue(likedTracks, "profile"), 300);
+  } catch (err) {
+    console.error("Failed to load liked songs:", err);
+    grid.innerHTML = emptyStateHtml("Failed to load liked songs. Please try again.");
+    updateProfileStats([]);
+  }
+}
+window.loadLikedSongs = loadLikedSongs;
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById("library_search_input");
+  const sortSelect = document.getElementById("library_sort_select");
+
+  let searchDebounce;
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(renderLibrary, 200);
+    });
+  }
+  if (sortSelect) {
+    sortSelect.addEventListener("change", () => {
+      const label = document.getElementById("library_sort_label");
+      const selectedOption = sortSelect.options[sortSelect.selectedIndex];
+      if (label && selectedOption) label.textContent = selectedOption.textContent;
+      renderLibrary();
+    });
+  }
+
+  const copyIdBtn = document.getElementById("profile_copy_id_btn");
+  if (copyIdBtn) {
+    copyIdBtn.addEventListener("click", () => {
+      const idFullEl = document.getElementById("profile_flo_id_full");
+      const text = idFullEl?.textContent?.trim();
+      if (!text || text === "---") return;
+      navigator.clipboard
+        ?.writeText(text)
+        .then(() => {
+          if (typeof showToast === "function") showToast("Address copied", "success");
+        })
+        .catch((e) => console.warn("Copy failed:", e));
+    });
+  }
+});
+
 window.loadTracksFromCloud = async function () {
   try {
     console.log("Loading tracks from cloud...");
@@ -529,9 +757,6 @@ window.loadTracksFromCloud = async function () {
       const cover = t.cover || "";
       const audio = t.audio || "";
 
-      const safeTitle = title.replace(/'/g, "\\'");
-      const safeArtist = artist.replace(/'/g, "\\'");
-
       TRACKS.push({
         audio: audio,
         title: title,
@@ -539,57 +764,24 @@ window.loadTracksFromCloud = async function () {
         img: cover,
         sunoUrl: t.sunoUrl,
         id: t.id,
+        playCount: t.playCount || 0,
+        addedAt: vc,
       });
 
-      html += `
-                            <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
-                                onclick="playTrack('${audio}', '${safeTitle}', '${safeArtist}', '${cover}')">
-                                <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                                    <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                        alt="${title} by ${artist}"
-                                        src="${cover}" />
-                                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <div class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
-                                            <span class="material-symbols-outlined text-4xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                                        </div>
-                                    </div>
-                                    <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                                        <span class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO AI MUSIC</span>
-                                    </div>
-                                </div>
-                                <div class="flex justify-between items-start mb-2">
-                                    <div>
-                                        <h3 class="font-headline-md text-xl text-on-surface mb-xs">${title}</h3>
-                                        <div class="flex items-center gap-2 mt-1">
-                                            <span class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics: <span class="text-secondary-fixed-dim">HUMAN/AI</span></span>
-                                            <span class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music: <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="mt-auto pt-md border-t border-white/5 flex items-center justify-between">
-                                    <div class="flex flex-col overflow-hidden max-w-[70%]">
-                                        <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Artist</span>
-                                        <span class="font-code-sm text-xs text-primary-fixed-dim truncate" title="${artist}">${artist}</span>
-                                    </div>
-                                    <div class="flex items-center gap-4">
-                                        <div class="flex flex-col items-center text-center">
-                                            <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Market Plays</span>
-                                            <span id="marketplays-${t.id}" class="font-code-sm text-sm text-primary-fixed-dim" title="Native platform plays">---</span>
-                                        </div>
-                                        <div class="flex flex-col items-center text-center">
-                                            <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Suno Plays</span>
-                                            <span id="sunoplays-${t.id}" class="font-code-sm text-sm text-on-surface text-primary-fixed-dim" title="Loading live stats...">${t.playCount ? t.playCount.toLocaleString() : "---"}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+      html += trackCardHtml(
+        { title, artist, img: cover, audio, id: t.id, playCount: t.playCount },
+        "explore",
+      );
     }
 
     if (grid) {
       grid.innerHTML = html;
-      setTimeout(() =>  fetchLivePlaysQueue(TRACKS), 2000);
+      setTimeout(() => fetchLivePlaysQueue(TRACKS, "explore"), 2000);
     }
+
+    // Keep the Library and Profile pages in sync whenever the catalog reloads
+    renderLibrary();
+    loadLikedSongs();
   } catch (err) {
     console.error("Failed to load tracks from cloud:", err);
     const grid = document.getElementById("explore_track_grid");
@@ -807,8 +999,13 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          const marketEl = document.getElementById(`marketplays-${track.id}`);
-          if (marketEl) marketEl.textContent = data.playCount.toLocaleString();
+          ["explore", "library", "profile"].forEach((prefix) => {
+            const marketEl = document.getElementById(
+              `marketplays-${prefix}-${track.id}`,
+            );
+            if (marketEl)
+              marketEl.textContent = data.playCount.toLocaleString();
+          });
         }
       })
       .catch(console.error);
@@ -992,6 +1189,11 @@ async function playerLikeClicked(e) {
   try {
     const data = await toggleTrackLike(track.id);
     updatePlayerLikes(data);
+
+    const profilePage = document.getElementById("page_creator_profile");
+    if (profilePage && !profilePage.classList.contains("hidden")) {
+      loadLikedSongs();
+    }
   } catch (err) {
     console.error(err);
   }
@@ -1070,24 +1272,24 @@ if (newHereLink) {
     generator.generateKeys();
   };
 }
-async function fetchLivePlaysQueue(tracks) {
+async function fetchLivePlaysQueue(tracks, gridPrefix = "explore") {
   if (!tracks || tracks.length === 0) return;
   console.log("Starting background lazy-load for live plays...");
 
   for (let track of tracks) {
-    if (!track.sunoUrl || !track.id) continue;
+    if (!track.id) continue;
 
     try {
-      // 1. Fetch Suno Plays from Oracle
-      const sunoRes = await fetch(
-        `${API_BASE_URL}/api/suno-plays?url=${encodeURIComponent(track.sunoUrl)}`,
-      );
-      let sunoPlays = 0;
-      if (sunoRes.ok) {
-        const data = await sunoRes.json();
-        sunoPlays = data.playCount || track.playCount || 0;
-      } else {
-        sunoPlays = track.playCount || 0;
+      // Fetch Suno Plays from Oracle (only if we have a source URL to scrape)
+      let sunoPlays = track.playCount || 0;
+      if (track.sunoUrl) {
+        const sunoRes = await fetch(
+          `${API_BASE_URL}/api/suno-plays?url=${encodeURIComponent(track.sunoUrl)}`,
+        );
+        if (sunoRes.ok) {
+          const data = await sunoRes.json();
+          sunoPlays = data.playCount || track.playCount || 0;
+        }
       }
 
       // 2. Fetch Native Platform Plays
@@ -1098,20 +1300,25 @@ async function fetchLivePlaysQueue(tracks) {
       if (platformRes.ok) {
         const pData = await platformRes.json();
         platformPlays = pData.playCount || 0;
+
+        // Store it on the track for profile stats
+        track.marketPlayCount = platformPlays;
       }
 
-      // 3. Update DOM
-      const sunoEl = document.getElementById(`sunoplays-${track.id}`);
+      const sunoEl = document.getElementById(`sunoplays-${gridPrefix}-${track.id}`);
       if (sunoEl) {
         sunoEl.textContent = sunoPlays.toLocaleString();
         sunoEl.classList.add("text-secondary-fixed-dim");
       }
 
-      const marketEl = document.getElementById(`marketplays-${track.id}`);
+      const marketEl = document.getElementById(`marketplays-${gridPrefix}-${track.id}`);
       if (marketEl) {
         marketEl.textContent = platformPlays.toLocaleString();
         // Store raw number for instant incrementing
         marketEl.setAttribute("data-plays", platformPlays);
+      }
+      if (gridPrefix === "profile") {
+        updateProfileStats(tracks);
       }
     } catch (e) {
       console.warn("Failed to lazy load plays for", track.id, e);
