@@ -549,7 +549,7 @@ function emptyStateHtml(message) {
 // ─── Library Page: search + sort over all uploaded tracks ──────────
 function renderLibrary() {
   const grid = document.getElementById("library_track_grid");
-  if (!grid) return; 
+  if (!grid) return;
 
   const searchInput = document.getElementById("library_search_input");
   const sortSelect = document.getElementById("library_sort_select");
@@ -564,7 +564,7 @@ function renderLibrary() {
     );
   });
 
- 
+
   list = list.slice();
   if (sortBy === "oldest") {
     list.reverse();
@@ -627,7 +627,7 @@ function updateProfileStats(likedTracks) {
 
 async function loadLikedSongs() {
   const grid = document.getElementById("profile_liked_grid");
-  if (!grid) return; 
+  if (!grid) return;
 
   const idEl = document.getElementById("profile_flo_id");
   const idFullEl = document.getElementById("profile_flo_id_full");
@@ -766,6 +766,7 @@ window.loadTracksFromCloud = async function () {
         id: t.id,
         playCount: t.playCount || 0,
         addedAt: vc,
+        uploader: track.senderID || null,
       });
 
       html += trackCardHtml(
@@ -790,6 +791,104 @@ window.loadTracksFromCloud = async function () {
         '<div class="col-span-full text-center text-red-400 py-8">Error loading tracks. See console.</div>';
   }
 };
+
+// Returns the tracks uploaded by the currently signed-in user (matched via
+// the cloud record's senderID, captured on each TRACKS entry as `uploader`).
+function getMyUploads() {
+  if (typeof floGlobals === "undefined" || !floGlobals.myFloID) return [];
+  return TRACKS.filter((t) => t.uploader === floGlobals.myFloID);
+}
+window.getMyUploads = getMyUploads;
+
+// ─── Dashboard Page: this user's uploads, plays and likes ──────────
+async function refreshDashboardLikes() {
+  const uploads = getMyUploads();
+  const ids = uploads.map((t) => t.id).filter(Boolean);
+
+  if (!ids.length) return;
+
+  try {
+    const res = await fetch(
+      `${API_BASE_URL}/api/user-stats?ids=${encodeURIComponent(ids.join(","))}`
+    );
+
+    const data = await res.json();
+
+    if (data.success) {
+      const likesEl = document.getElementById("dashboard_stat_likes");
+
+      if (likesEl) {
+        likesEl.textContent = data.totalLikes.toLocaleString();
+      }
+    }
+  } catch (err) {
+    console.error("Failed to refresh dashboard likes:", err);
+  }
+}
+function updateDashboardStats(uploads, totalLikes) {
+  const uploadsEl = document.getElementById("dashboard_stat_uploads");
+  const playsEl = document.getElementById("dashboard_stat_plays");
+  const likesEl = document.getElementById("dashboard_stat_likes");
+
+  if (uploadsEl) uploadsEl.textContent = String(uploads.length);
+
+  const totalPlays = uploads.reduce((sum, t) => sum + (t.marketPlayCount || 0), 0);
+  if (playsEl) playsEl.textContent = totalPlays.toLocaleString();
+
+  if (likesEl && totalLikes !== null) likesEl.textContent = totalLikes.toLocaleString();
+}
+
+async function loadDashboardUploads() {
+  const grid = document.getElementById("dashboard_upload_grid");
+  if (!grid) return;
+
+  const hasFloId = typeof floGlobals !== "undefined" && !!floGlobals.myFloID;
+
+  if (!hasFloId) {
+    grid.innerHTML = emptyStateHtml("Sign in to see your uploads.");
+    updateDashboardStats([], 0);
+    const countEl = document.getElementById("dashboard_upload_count");
+    if (countEl) countEl.textContent = "0 TRACKS";
+    return;
+  }
+
+  grid.innerHTML = emptyStateHtml("Loading your uploads...");
+
+  const uploads = getMyUploads();
+
+  const countEl = document.getElementById("dashboard_upload_count");
+  if (countEl)
+    countEl.textContent = `${uploads.length} TRACK${uploads.length === 1 ? "" : "S"}`;
+
+  updateDashboardStats(uploads, null);
+
+  if (uploads.length === 0) {
+    grid.innerHTML = emptyStateHtml(
+      "No uploads yet. Head to Upload to publish your first track.",
+    );
+    return;
+  }
+
+  grid.innerHTML = uploads.map((t) => trackCardHtml(t, "dashboard")).join("");
+  setTimeout(() => fetchLivePlaysQueue(uploads, "dashboard"), 300);
+
+  // Fetch total likes across all uploads in a single batched request.
+  try {
+    const ids = uploads.map((t) => t.id).filter(Boolean);
+    if (ids.length) {
+      const res = await fetch(
+        `${API_BASE_URL}/api/user-stats?ids=${encodeURIComponent(ids.join(","))}`,
+      );
+      const data = await res.json();
+      if (data.success) {
+        updateDashboardStats(uploads, data.totalLikes);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load total likes:", err);
+  }
+}
+window.loadDashboardUploads = loadDashboardUploads;
 
 // Wait for app initialization before loading tracks
 
@@ -999,13 +1098,24 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          ["explore", "library", "profile"].forEach((prefix) => {
+          // Keep the TRACKS data in sync
+          track.marketPlayCount = data.playCount;
+
+          // Update visible card counts
+          ["explore", "library", "profile", "dashboard"].forEach((prefix) => {
             const marketEl = document.getElementById(
               `marketplays-${prefix}-${track.id}`,
             );
-            if (marketEl)
+
+            if (marketEl) {
               marketEl.textContent = data.playCount.toLocaleString();
+              marketEl.setAttribute("data-plays", data.playCount);
+            }
           });
+
+          // Update dashboard total immediately
+          const uploads = getMyUploads();
+          updateDashboardStats(uploads, null);
         }
       })
       .catch(console.error);
@@ -1189,6 +1299,10 @@ async function playerLikeClicked(e) {
   try {
     const data = await toggleTrackLike(track.id);
     updatePlayerLikes(data);
+    refreshDashboardLikes();
+    if (document.getElementById("dashboard_stat_likes")) {
+      loadDashboardUploads();
+    }
 
     const profilePage = document.getElementById("page_creator_profile");
     if (profilePage && !profilePage.classList.contains("hidden")) {
@@ -1319,6 +1433,9 @@ async function fetchLivePlaysQueue(tracks, gridPrefix = "explore") {
       }
       if (gridPrefix === "profile") {
         updateProfileStats(tracks);
+      }
+      if (gridPrefix === "dashboard") {
+        updateDashboardStats(tracks, null);
       }
     } catch (e) {
       console.warn("Failed to lazy load plays for", track.id, e);
