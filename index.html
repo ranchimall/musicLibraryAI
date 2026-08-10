@@ -544,8 +544,7 @@
                         onclick="routeTo('page_explore')">Home</a>
                     <a href="#" class="text-outline hover:text-white font-label-lg transition-colors"
                         onclick="routeTo('page_library')">Library</a>
-                    <a href="#"
-                        class="text-outline hover:text-white font-label-lg transition-colors"
+                    <a href="#" class="text-outline hover:text-white font-label-lg transition-colors"
                         onclick="routeTo('page_dashboard')">Dashboard</a>
                     <a href="#" class="text-outline hover:text-white font-label-lg transition-colors"
                         onclick="routeTo('page_creator_profile')">Profile</a>
@@ -620,13 +619,13 @@
             </section>
             <!-- Trending Tracks -->
             <section class="px-margin-mobile md:px-margin-desktop py-xl">
-                <div class="flex items-center justify-between mb-lg">
+                <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-0 mb-lg">
                     <div>
                         <h2 class="font-headline-md text-headline-md text-on-surface">Trending Library Tracks</h2>
                         <p class="font-code-sm text-code-sm text-outline">VALUED BY CONSUMPTION</p>
                     </div>
                     <button
-                        class="text-primary-fixed-dim font-label-caps text-label-caps flex items-center gap-xs hover:underline">
+                        class="text-primary-fixed-dim font-label-caps text-label-caps flex items-center gap-xs hover:underline whitespace-nowrap self-start sm:self-auto">
                         VIEW ALL <span class="material-symbols-outlined text-sm">arrow_forward</span>
                     </button>
                 </div>
@@ -889,7 +888,7 @@
                 <section class="pt-lg mb-xl">
                     <div class="flex items-center justify-between gap-md mb-lg">
                         <h1
-                            class="font-display-lg text-display-lg-mobile md:text-display-lg tracking-tighter text-on-surface min-w-0 truncate">
+                            class="font-display-lg text-[28px] sm:text-[36px] md:text-display-lg tracking-tighter text-on-surface whitespace-nowrap shrink-0">
                             MUSIC_<span class="text-primary-fixed-dim">LIBRARY</span>
                         </h1>
                         <div class="text-right shrink-0">
@@ -899,29 +898,26 @@
                             </p>
                         </div>
                     </div>
-                    <div class="flex flex-row gap-sm md:gap-md">
-                        <!-- Search -->
+                    <div class="w-full">
+                        <!-- Search & Sort -->
                         <div
-                            class="flex-1 min-w-0 flex items-center gap-xs px-sm md:px-md py-sm bg-surface-container-low border border-white/10 rounded-lg focus-within:border-primary-fixed-dim/50 transition-colors">
+                            class="w-full flex items-center gap-xs px-sm md:px-md py-sm bg-surface-container-low border border-white/10 rounded-lg focus-within:border-primary-fixed-dim/50 transition-colors">
                             <span class="material-symbols-outlined text-outline text-sm shrink-0">search</span>
                             <input id="library_search_input" type="text" placeholder="Search title or artist..."
-                                class="bg-transparent border-none w-full min-w-0 truncate text-on-surface font-code-sm text-code-sm outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none placeholder:text-outline/50" />
-                        </div>
-                        <div
-                            class="relative shrink-0 flex items-center justify-center gap-xs w-11 md:w-auto px-0 md:px-md py-sm bg-surface-container-low border border-white/10 rounded-lg cursor-pointer">
-                            <span class="material-symbols-outlined text-outline text-sm pointer-events-none">sort</span>
-                            <span id="library_sort_label"
-                                class="hidden md:inline text-primary-fixed-dim font-code-sm text-code-sm pointer-events-none whitespace-nowrap">Newest</span>
-                            <select id="library_sort_select"
-                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer bg-surface-container-low text-on-surface"
-                                aria-label="Sort tracks" style="color-scheme: dark;">
-                                <option value="newest" class="bg-surface-container-low text-on-surface">Newest
-                                </option>
-                                <option value="oldest" class="bg-surface-container-low text-on-surface">Oldest
-                                </option>
-                                <option value="most_played" class="bg-surface-container-low text-on-surface">Most Played
-                                </option>
-                            </select>
+                                class="bg-transparent border-none flex-1 min-w-0 truncate text-on-surface font-code-sm text-code-sm outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none placeholder:text-outline/50" />
+                            <div class="relative shrink-0 flex items-center justify-center cursor-pointer group ml-1 pl-2 border-l border-white/10">
+                                <span class="material-symbols-outlined text-outline group-hover:text-primary-fixed-dim text-sm pointer-events-none transition-colors">sort</span>
+                                <select id="library_sort_select"
+                                    class="absolute inset-0 w-full h-full opacity-0 cursor-pointer bg-surface-container-low text-on-surface"
+                                    aria-label="Sort tracks" style="color-scheme: dark;">
+                                    <option value="newest" class="bg-surface-container-low text-on-surface">Newest
+                                    </option>
+                                    <option value="oldest" class="bg-surface-container-low text-on-surface">Oldest
+                                    </option>
+                                    <option value="most_played" class="bg-surface-container-low text-on-surface">Most Played
+                                    </option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -981,12 +977,12 @@
 
                 <!-- Recent Uploads -->
                 <div>
-                    <div class="flex items-center justify-between mb-lg">
+                    <div class="flex flex-col sm:flex-row sm:items-center items-start justify-between gap-2 sm:gap-0 mb-lg">
                         <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
                             <span class="material-symbols-outlined text-primary-fixed-dim">upload</span>
                             Recent Uploads
                         </h2>
-                        <p class="font-code-sm text-code-sm text-outline shrink-0" id="dashboard_upload_count">---
+                        <p class="font-code-sm text-code-sm text-outline shrink-0 whitespace-nowrap" id="dashboard_upload_count">---
                             TRACKS</p>
                     </div>
                     <div id="dashboard_upload_grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
@@ -1060,32 +1056,43 @@
                     <aside class="lg:col-span-4 space-y-lg">
                         <div class="space-y-md">
                             <h2 class="font-headline-md text-headline-md text-on-surface">Listening Stats</h2>
-                            <div class="glass-card p-lg rounded-xl grid grid-cols-3 gap-md">
+                            <div class="glass-card p-md md:p-lg rounded-xl grid grid-cols-2 md:grid-cols-3 gap-md">
                                 <div class="flex flex-col items-center text-center">
                                     <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Liked Tracks</p>
-                                    <p class="font-display-lg text-[28px] text-primary-fixed-dim"
-                                        id="profile_stat_liked">0</p>
+                                        Liked Tracks
+                                    </p>
+                                    <p class="font-display-lg text-[24px] md:text-[28px] text-primary-fixed-dim"
+                                        id="profile_stat_liked">
+                                        0
+                                    </p>
                                 </div>
+
                                 <div class="flex flex-col items-center text-center">
                                     <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
                                         Market Plays
                                     </p>
-
-                                    <p id="profile_stat_market" class="font-display-lg text-[28px] text-on-surface">
+                                    <p id="profile_stat_market" class="font-display-lg text-[24px] md:text-[28px] text-on-surface">
                                         0
                                     </p>
                                 </div>
-                                <div class="flex flex-col items-center text-center">
+
+                                <div class="flex flex-col items-center text-center col-span-2 md:col-span-1">
                                     <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Suno Plays</p>
-                                    <p class="font-display-lg text-[28px] text-on-surface" id="profile_stat_plays">0</p>
+                                        Suno Plays
+                                    </p>
+                                    <p class="font-display-lg text-[24px] md:text-[28px] text-on-surface" id="profile_stat_plays">
+                                        0
+                                    </p>
                                 </div>
-                                <div class="col-span-3 pt-xs border-t border-white/5">
+
+                                <div class="col-span-2 md:col-span-3 pt-xs border-t border-white/5">
                                     <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Top Artist</p>
+                                        Top Artist
+                                    </p>
                                     <p class="font-code-sm text-code-sm text-secondary-fixed-dim truncate"
-                                        id="profile_stat_artist">---</p>
+                                        id="profile_stat_artist">
+                                        ---
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -1370,7 +1377,7 @@
                         <div class="glass-panel p-md rounded-xl space-y-md" id="crypto-payment-interface">
                             <div class="space-y-sm"><label
                                     class="font-label-caps text-[10px] text-outline uppercase">Select Network</label>
-                                <div class="grid grid-cols-3 gap-xs"><button
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-xs"><button
                                         class="py-xs px-sm border border-primary-fixed-dim bg-primary-fixed-dim/10 text-primary-fixed-dim font-code-sm text-code-sm rounded">ETHEREUM</button><button
                                         class="py-xs px-sm border border-outline-variant hover:border-outline text-outline font-code-sm text-code-sm rounded transition-colors">POLYGON</button><button
                                         class="py-xs px-sm border border-outline-variant hover:border-outline text-outline font-code-sm text-code-sm rounded transition-colors">SOLANA</button>
