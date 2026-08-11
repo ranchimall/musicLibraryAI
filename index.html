@@ -905,8 +905,10 @@
                             <span class="material-symbols-outlined text-outline text-sm shrink-0">search</span>
                             <input id="library_search_input" type="text" placeholder="Search title or artist..."
                                 class="bg-transparent border-none flex-1 min-w-0 truncate text-on-surface font-code-sm text-code-sm outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none placeholder:text-outline/50" />
-                            <div class="relative shrink-0 flex items-center justify-center cursor-pointer group ml-1 pl-2 border-l border-white/10">
-                                <span class="material-symbols-outlined text-outline group-hover:text-primary-fixed-dim text-sm pointer-events-none transition-colors">sort</span>
+                            <div
+                                class="relative shrink-0 flex items-center justify-center cursor-pointer group ml-1 pl-2 border-l border-white/10">
+                                <span
+                                    class="material-symbols-outlined text-outline group-hover:text-primary-fixed-dim text-sm pointer-events-none transition-colors">sort</span>
                                 <select id="library_sort_select"
                                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer bg-surface-container-low text-on-surface"
                                     aria-label="Sort tracks" style="color-scheme: dark;">
@@ -914,7 +916,8 @@
                                     </option>
                                     <option value="oldest" class="bg-surface-container-low text-on-surface">Oldest
                                     </option>
-                                    <option value="most_played" class="bg-surface-container-low text-on-surface">Most Played
+                                    <option value="most_played" class="bg-surface-container-low text-on-surface">Most
+                                        Played
                                     </option>
                                 </select>
                             </div>
@@ -977,12 +980,14 @@
 
                 <!-- Recent Uploads -->
                 <div>
-                    <div class="flex flex-col sm:flex-row sm:items-center items-start justify-between gap-2 sm:gap-0 mb-lg">
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-center items-start justify-between gap-2 sm:gap-0 mb-lg">
                         <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
                             <span class="material-symbols-outlined text-primary-fixed-dim">upload</span>
                             Recent Uploads
                         </h2>
-                        <p class="font-code-sm text-code-sm text-outline shrink-0 whitespace-nowrap" id="dashboard_upload_count">---
+                        <p class="font-code-sm text-code-sm text-outline shrink-0 whitespace-nowrap"
+                            id="dashboard_upload_count">---
                             TRACKS</p>
                     </div>
                     <div id="dashboard_upload_grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
@@ -1071,16 +1076,18 @@
                                     <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
                                         Market Plays
                                     </p>
-                                    <p id="profile_stat_market" class="font-display-lg text-[24px] md:text-[28px] text-on-surface">
+                                    <p id="profile_stat_market"
+                                        class="font-display-lg text-[24px] md:text-[28px] text-on-surface">
                                         0
                                     </p>
                                 </div>
 
                                 <div class="flex flex-col items-center text-center col-span-2 md:col-span-1">
                                     <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Suno Plays
+                                        Source Plays
                                     </p>
-                                    <p class="font-display-lg text-[24px] md:text-[28px] text-on-surface" id="profile_stat_plays">
+                                    <p class="font-display-lg text-[24px] md:text-[28px] text-on-surface"
+                                        id="profile_stat_plays">
                                         0
                                     </p>
                                 </div>
@@ -1138,6 +1145,10 @@
                                 <div
                                     class="w-48 h-48 md:w-56 md:h-56 shadow-[0_8px_40px_rgba(0,0,0,0.5)] shrink-0 overflow-hidden rounded-md">
                                     <img id="track_detail_img" src="" class="w-full h-full object-cover" />
+
+                                    <video id="track_detail_video" class="w-full h-full object-cover hidden" muted loop
+                                        playsinline autoplay preload="metadata">
+                                    </video>
                                 </div>
 
                                 <!-- Text Details -->
@@ -1529,8 +1540,9 @@
         <div class="relative z-10 max-w-2xl mx-auto px-margin-mobile md:px-margin-desktop py-xl">
             <div class="text-center mb-xl">
                 <h2 class="font-display-lg text-4xl text-white mb-2">Publish a Track</h2>
-                <p class="text-on-surface-variant font-body-base">Upload AI-generated music by providing a Suno share
-                    link. All metadata will be extracted automatically.</p>
+                <p class="text-on-surface-variant font-body-base">Upload AI-generated music by providing a Suno or
+                    Google Flow Music share
+                    link. Track metadata will be extracted automatically.</p>
             </div>
 
             <div class="glass-panel p-8 rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden">
@@ -1541,20 +1553,20 @@
 
                 <div class="relative z-10 flex flex-col gap-6">
                     <div>
-                        <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Suno Share
+                        <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Track Share
                             Link</label>
                         <div class="relative">
-                            <input id="suno_link_input" type="text"
+                            <input id="track_link_input" type="text"
                                 class="w-full bg-black/50 border border-white/10 rounded-xl pl-4 pr-32 py-4 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
-                                placeholder="https://suno.com/s/...">
-                            <button id="fetch_suno_btn" onclick="fetchSunoData()"
+                                placeholder="https://suno.com/song/... or https://www.flowmusic.app/song/...">
+                            <button id="fetch_track_btn" type="button" onclick="fetchTrackData()"
                                 class="absolute right-2 top-1/2 -translate-y-1/2 bg-primary-fixed-dim/10 text-primary-fixed-dim hover:bg-primary-fixed-dim hover:text-on-primary border border-primary-fixed-dim/30 font-bold text-[10px] font-label-caps tracking-widest px-4 py-2 rounded-lg transition-all flex items-center gap-1">
                                 <span class="material-symbols-outlined text-[14px]">autorenew</span>
                             </button>
                         </div>
                         <p class="text-[11px] text-outline mt-2 font-code-sm flex items-center gap-1">
                             <span class="material-symbols-outlined text-[14px] text-primary-fixed-dim">info</span>
-                            E.g. suno.com/s/xxxxxxxx
+                            Supports Suno and Google Flow Music share links.
                         </p>
                     </div>
 
@@ -1565,8 +1577,14 @@
 
                         <div
                             class="flex flex-row gap-4 sm:gap-6 items-start bg-black/30 p-4 rounded-xl border border-white/5">
-                            <img id="preview_image" src=""
-                                class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 rounded-lg object-cover shadow-lg border border-white/10">
+                            <div
+                                class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 rounded-lg overflow-hidden border border-white/10 shadow-lg">
+                                <img id="preview_image" src="" class="w-full h-full object-cover">
+
+                                <video id="preview_video" class="hidden w-full h-full object-cover" autoplay muted loop
+                                    playsinline>
+                                </video>
+                            </div>
                             <div class="flex flex-col flex-1 min-w-0">
                                 <div class="flex items-start justify-between gap-2 mb-2">
                                     <h4 id="preview_title"
@@ -1593,6 +1611,33 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Extracted Lyrics Preview -->
+                        <div id="extracted_lyrics_section" class="hidden mt-4 pt-4 border-t border-white/5">
+                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest mb-2">
+                                Extracted Lyrics Preview</h4>
+                            <div id="preview_lyrics_text"
+                                class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white/80 font-code-sm max-h-48 overflow-y-auto whitespace-pre-wrap">
+                            </div>
+                        </div>
+                        <!-- Manual Lyrics Fallback -->
+                        <div id="manual_lyrics_section" class="hidden mt-6 pt-6 border-t border-white/5">
+                            <div class="flex items-start justify-between gap-4 mb-2">
+                                <div>
+                                    <label for="manual_lyrics_input"
+                                        class="font-label-caps text-xs text-outline tracking-wider block">Add Lyrics
+                                        Manually</label>
+                                    <p class="text-[11px] text-outline/70 mt-1 font-code-sm">
+                                        Lyrics were not found on the source page. You can add them before publishing.
+                                    </p>
+                                </div>
+                                <span
+                                    class="material-symbols-outlined text-primary-fixed-dim text-[18px] shrink-0">edit_note</span>
+                            </div>
+                            <textarea id="manual_lyrics_input" rows="8" oninput="onManualLyricsInput()"
+                                class="w-full resize-y bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                placeholder="Paste or type the lyrics here..."></textarea>
                         </div>
 
                         <button id="publish_track_btn" onclick="publishTrack()"
@@ -1624,6 +1669,10 @@
                         <div class="w-10 h-10 rounded overflow-hidden flex-shrink-0">
                             <img id="player_track_img_mobile" class="w-full h-full object-cover"
                                 src="https://cdn1.suno.ai/sAura12.jpg" />
+
+                            <video id="player_track_video_mobile" class="w-full h-full object-cover hidden" muted loop
+                                playsinline autoplay preload="metadata">
+                            </video>
                         </div>
                         <div class="flex-1 min-w-0 overflow-hidden">
                             <h5 id="player_track_title_mobile"
@@ -1659,6 +1708,10 @@
                 <div class="w-14 h-14 rounded overflow-hidden flex-shrink-0">
                     <img id="player_track_img" class="w-full h-full object-cover" data-alt="Album art"
                         src="https://cdn1.suno.ai/sAura12.jpg" />
+
+                    <video id="player_track_video" class="w-full h-full object-cover hidden" muted loop playsinline
+                        autoplay preload="metadata">
+                    </video>
                 </div>
                 <div class="overflow-hidden">
                     <h5 id="player_track_title" class="text-on-surface font-headline-md text-sm truncate">हर कोई
@@ -1768,6 +1821,10 @@
                 <img id="player_track_img_full"
                     class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     src="https://cdn1.suno.ai/sAura12.jpg" />
+
+                <video id="player_track_video_full" class="w-full h-full object-cover hidden" muted loop playsinline
+                    autoplay preload="metadata">
+                </video>
             </div>
         </div>
 
@@ -1876,7 +1933,7 @@
     </nav>
     <script src="scripts/config.js"></script>
     <script src="scripts/toast.js"></script>
-    <script src="scripts/suno_upload.js" defer></script>
+    <script src="scripts/track_upload.js" defer></script>
     <script src="scripts/main.js" defer></script>
     </div>
     <template id="generateKeys">

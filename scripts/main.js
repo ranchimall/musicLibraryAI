@@ -486,31 +486,56 @@ function updateLyricsUI(lyricsText) {
 
 let TRACKS = [];
 
-//  Shared Track Card Renderer 
+//  Shared Track Card Renderer
 function trackCardHtml(t, gridPrefix) {
   const title = t.title || "Unknown Title";
   const artist = t.artist || "Unknown Artist";
   const cover = t.img || t.cover || "";
   const audio = t.audio || "";
+  const videoUrl = t.videoUrl || "";
   const id = t.id || "";
 
   const safeTitle = title.replace(/'/g, "\\'");
   const safeArtist = artist.replace(/'/g, "\\'");
 
+  // Platform badge/tag/label
+  // records that predate multi-platform support).
+  const platform = t.platform || "suno";
+  const platformMeta = (window.PLATFORM_CONFIG &&
+    window.PLATFORM_CONFIG[platform]) || {
+    badge: "AI MUSIC",
+    tag: "AI",
+    playsLabel: "Source Plays",
+  };
+
   return `
         <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
             onclick="playTrack('${audio}', '${safeTitle}', '${safeArtist}', '${cover}')">
             <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                <img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    alt="${title} by ${artist}"
-                    src="${cover}" />
+                ${
+                  videoUrl
+                    ? `<video
+        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        src="${videoUrl}"
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="metadata"
+        aria-label="${title} by ${artist}">
+    </video>`
+                    : `<img
+        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+        alt="${title} by ${artist}"
+        src="${cover}" />`
+                }
                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
                         <span class="material-symbols-outlined text-4xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
                     </div>
                 </div>
                 <div class="absolute top-sm right-sm flex flex-col gap-xs items-end">
-                    <span class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">SUNO AI MUSIC</span>
+                    <span class="px-xs py-base bg-black/80 rounded border border-white/10 font-code-sm text-code-sm text-primary-fixed-dim">${platformMeta.badge}</span>
                 </div>
             </div>
             <div class="flex justify-between items-start mb-2">
@@ -518,7 +543,7 @@ function trackCardHtml(t, gridPrefix) {
                     <h3 class="font-headline-md text-xl text-on-surface mb-xs">${title}</h3>
                     <div class="flex items-center gap-2 mt-1">
                         <span class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Lyrics: <span class="text-secondary-fixed-dim">HUMAN/AI</span></span>
-                        <span class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music: <span class="text-primary-fixed-dim">AI (SUNO)</span></span>
+                        <span class="px-2 py-1 bg-surface-container-low rounded border border-white/5 font-code-sm text-[10px] text-outline uppercase">Music: <span class="text-primary-fixed-dim">${platformMeta.tag}</span></span>
                     </div>
                 </div>
             </div>
@@ -533,8 +558,8 @@ function trackCardHtml(t, gridPrefix) {
                         <span id="marketplays-${gridPrefix}-${id}" class="font-code-sm text-sm text-primary-fixed-dim" title="Native platform plays">---</span>
                     </div>
                     <div class="flex flex-col items-center text-center">
-                        <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">Suno Plays</span>
-                        <span id="sunoplays-${gridPrefix}-${id}" class="font-code-sm text-sm text-on-surface text-primary-fixed-dim" title="Loading live stats...">${t.playCount ? t.playCount.toLocaleString() : "---"}</span>
+                        <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">${platformMeta.playsLabel}</span>
+                        <span id="sourceplays-${gridPrefix}-${id}" class="font-code-sm text-sm text-on-surface text-primary-fixed-dim" title="Loading live stats...">${t.playCount ? t.playCount.toLocaleString() : "---"}</span>
                     </div>
                 </div>
             </div>
@@ -563,7 +588,6 @@ function renderLibrary() {
       (t.artist || "").toLowerCase().includes(query)
     );
   });
-
 
   list = list.slice();
   if (sortBy === "oldest") {
@@ -598,12 +622,15 @@ function updateProfileStats(likedTracks) {
 
   if (likedEl) likedEl.textContent = String(likedTracks.length);
 
-  const totalPlays = likedTracks.reduce((sum, t) => sum + (t.playCount || 0), 0);
+  const totalPlays = likedTracks.reduce(
+    (sum, t) => sum + (t.playCount || 0),
+    0,
+  );
   if (playsEl) playsEl.textContent = totalPlays.toLocaleString();
 
   const totalMarketPlays = likedTracks.reduce(
     (sum, t) => sum + (t.marketPlayCount || 0),
-    0
+    0,
   );
 
   if (marketEl) {
@@ -667,16 +694,19 @@ async function loadLikedSongs() {
       return;
     }
 
-    grid.innerHTML = likedTracks.map((t) => trackCardHtml(t, "profile")).join("");
+    grid.innerHTML = likedTracks
+      .map((t) => trackCardHtml(t, "profile"))
+      .join("");
     setTimeout(() => fetchLivePlaysQueue(likedTracks, "profile"), 300);
   } catch (err) {
     console.error("Failed to load liked songs:", err);
-    grid.innerHTML = emptyStateHtml("Failed to load liked songs. Please try again.");
+    grid.innerHTML = emptyStateHtml(
+      "Failed to load liked songs. Please try again.",
+    );
     updateProfileStats([]);
   }
 }
 window.loadLikedSongs = loadLikedSongs;
-
 
 document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("library_search_input");
@@ -693,7 +723,8 @@ document.addEventListener("DOMContentLoaded", () => {
     sortSelect.addEventListener("change", () => {
       const label = document.getElementById("library_sort_label");
       const selectedOption = sortSelect.options[sortSelect.selectedIndex];
-      if (label && selectedOption) label.textContent = selectedOption.textContent;
+      if (label && selectedOption)
+        label.textContent = selectedOption.textContent;
       renderLibrary();
     });
   }
@@ -707,7 +738,8 @@ document.addEventListener("DOMContentLoaded", () => {
       navigator.clipboard
         ?.writeText(text)
         .then(() => {
-          if (typeof showToast === "function") showToast("Address copied", "success");
+          if (typeof showToast === "function")
+            showToast("Address copied", "success");
         })
         .catch((e) => console.warn("Copy failed:", e));
     });
@@ -747,11 +779,31 @@ window.loadTracksFromCloud = async function () {
     let html = "";
     const vcs = Object.keys(data).sort().reverse();
 
+    // Remove duplicate track IDs.
+    // If a track was uploaded more than once, prefer the version
+    // that contains lyrics.
+    const uniqueTracks = new Map();
+
     for (let vc of vcs) {
       const track = data[vc];
+
       if (!track || !track.message) continue;
+
       const t = track.message;
 
+      const existing = uniqueTracks.get(t.id);
+
+      if (!existing || (!existing.lyrics && t.lyrics)) {
+        uniqueTracks.set(t.id, {
+          vc,
+          track,
+          t,
+        });
+      }
+    }
+
+    // Build TRACKS and Explore HTML from the deduplicated records
+    for (const { vc, track, t } of uniqueTracks.values()) {
       const title = t.title || "Unknown Title";
       const artist = t.artist || "Unknown Artist";
       const cover = t.cover || "";
@@ -759,18 +811,30 @@ window.loadTracksFromCloud = async function () {
 
       TRACKS.push({
         audio: audio,
+        videoUrl: t.videoUrl || "",
         title: title,
         artist: artist,
         img: cover,
-        sunoUrl: t.sunoUrl,
+        sourceUrl: t.sourceUrl || t.sunoUrl,
+        platform: t.platform || "suno",
         id: t.id,
         playCount: t.playCount || 0,
+        lyrics: t.lyrics || "",
         addedAt: vc,
         uploader: track.senderID || null,
       });
 
       html += trackCardHtml(
-        { title, artist, img: cover, audio, id: t.id, playCount: t.playCount },
+        {
+          title,
+          artist,
+          img: cover,
+          audio,
+          videoUrl: t.videoUrl || "",
+          id: t.id,
+          playCount: t.playCount,
+          platform: t.platform || "suno",
+        },
         "explore",
       );
     }
@@ -809,7 +873,7 @@ async function refreshDashboardLikes() {
 
   try {
     const res = await fetch(
-      `${API_BASE_URL}/api/user-stats?ids=${encodeURIComponent(ids.join(","))}`
+      `${API_BASE_URL}/api/user-stats?ids=${encodeURIComponent(ids.join(","))}`,
     );
 
     const data = await res.json();
@@ -832,10 +896,14 @@ function updateDashboardStats(uploads, totalLikes) {
 
   if (uploadsEl) uploadsEl.textContent = String(uploads.length);
 
-  const totalPlays = uploads.reduce((sum, t) => sum + (t.marketPlayCount || 0), 0);
+  const totalPlays = uploads.reduce(
+    (sum, t) => sum + (t.marketPlayCount || 0),
+    0,
+  );
   if (playsEl) playsEl.textContent = totalPlays.toLocaleString();
 
-  if (likesEl && totalLikes !== null) likesEl.textContent = totalLikes.toLocaleString();
+  if (likesEl && totalLikes !== null)
+    likesEl.textContent = totalLikes.toLocaleString();
 }
 
 async function loadDashboardUploads() {
@@ -938,7 +1006,6 @@ function extractLyrics(html, uuid) {
     return "";
   }
 
-
   const promptMatch = songBlock.match(
     /\\?"prompt\\?"\s*:\s*\\?"([\s\S]*?)(?<!\\)\\?"/i,
   );
@@ -967,7 +1034,7 @@ function extractLyrics(html, uuid) {
     lyrics = cleanLyrics(match[1]);
   }
 
-  return lyrics
+  return lyrics;
 }
 
 async function preloadLyrics(uuid) {
@@ -976,14 +1043,44 @@ async function preloadLyrics(uuid) {
     return;
   }
 
+  // Check if the track already has lyrics stored (from cloud/publish)
+  const track = TRACKS.find((t) => t.id === uuid);
+  if (track && track.lyrics && track.lyrics.trim()) {
+    currentLyricsCache[uuid] = track.lyrics;
+    if (currentPlayingUUID === uuid) {
+      renderLyrics(track.lyrics);
+    }
+    return;
+  }
+
+  // Determine the platform-specific source URL for scraping
+  const platform = track ? track.platform : "suno";
+  let scrapeUrl;
+  if (platform === "flowmusic" && track && track.sourceUrl) {
+    scrapeUrl = track.sourceUrl;
+  } else {
+    scrapeUrl = "https://suno.com/song/" + uuid;
+  }
+
   try {
-    const proxyUrl =
-      "https://corsproxy.io/?" +
-      encodeURIComponent("https://suno.com/song/" + uuid);
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(scrapeUrl);
     const response = await fetch(proxyUrl);
     if (!response.ok) throw new Error("Failed to fetch");
     const html = await response.text();
-    let lyrics = extractLyrics(html, uuid);
+    let lyrics;
+
+    if (platform === "flowmusic") {
+      // Use Flow Music lyrics regex
+      const lyricsMatch = html.match(/"lyrics"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+      if (lyricsMatch) {
+        lyrics = lyricsMatch[1]
+          .replace(/\\n/g, "\n")
+          .replace(/\\"/g, '"')
+          .trim();
+      }
+    } else {
+      lyrics = extractLyrics(html, uuid);
+    }
 
     if (!lyrics) {
       lyrics = "No lyrics available for this track (Instrumental).";
@@ -1025,20 +1122,50 @@ window.openDesktopLyrics = async function () {
     return;
   }
 
+  // Check if the track already has lyrics stored (from cloud/publish)
+  const track = TRACKS.find((t) => t.id === currentPlayingUUID);
+  if (track && track.lyrics && track.lyrics.trim()) {
+    currentLyricsCache[currentPlayingUUID] = track.lyrics;
+    renderLyrics(track.lyrics);
+    return;
+  }
+
+  // Determine the platform for the loading message
+  const platform = track ? track.platform : "suno";
+  const platformLabel = platform === "flowmusic" ? "FLOW MUSIC" : "SUNO";
+
   content.innerHTML = `<div class="flex items-center gap-2 text-primary-fixed-dim justify-center py-20">
                     <span class="material-symbols-outlined animate-spin text-3xl">refresh</span>
-                    <span class="font-label-caps tracking-widest text-sm">FETCHING FROM SUNO...</span>
+                    <span class="font-label-caps tracking-widest text-sm">FETCHING FROM ${platformLabel}...</span>
                 </div>`;
 
+  // Determine the platform-specific source URL for scraping
+  let scrapeUrl;
+  if (platform === "flowmusic" && track && track.sourceUrl) {
+    scrapeUrl = track.sourceUrl;
+  } else {
+    scrapeUrl = "https://suno.com/song/" + currentPlayingUUID;
+  }
+
   try {
-    const proxyUrl =
-      "https://corsproxy.io/?" +
-      encodeURIComponent("https://suno.com/song/" + currentPlayingUUID);
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(scrapeUrl);
     const response = await fetch(proxyUrl);
     if (!response.ok) throw new Error("Failed to fetch");
     const html = await response.text();
 
-    let lyrics = extractLyrics(html, currentPlayingUUID);
+    let lyrics;
+
+    if (platform === "flowmusic") {
+      const lyricsMatch = html.match(/"lyrics"\s*:\s*"((?:[^"\\]|\\.)*)"/i);
+      if (lyricsMatch) {
+        lyrics = lyricsMatch[1]
+          .replace(/\\n/g, "\n")
+          .replace(/\\"/g, '"')
+          .trim();
+      }
+    } else {
+      lyrics = extractLyrics(html, currentPlayingUUID);
+    }
 
     if (!lyrics) {
       lyrics = "No lyrics available for this track.";
@@ -1078,15 +1205,42 @@ function renderLyrics(lyricsText) {
   if (content) content.innerHTML = htmlFormatted;
   if (preview) preview.innerHTML = htmlFormatted;
 }
+function updateMedia(imgId, videoId, imgUrl, videoUrl) {
+  const img = document.getElementById(imgId);
+  const video = document.getElementById(videoId);
+
+  if (!img || !video) return;
+
+  if (videoUrl) {
+    img.classList.add("hidden");
+
+    video.src = videoUrl;
+    video.classList.remove("hidden");
+
+    video.muted = true;
+    video.loop = true;
+    video.playsInline = true;
+
+    video.load();
+    video.play().catch(() => {});
+  } else {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    video.classList.add("hidden");
+
+    img.src = imgUrl || "";
+    img.classList.remove("hidden");
+  }
+}
 
 window.playTrack = function (audioUrl, title, artist, imgUrl) {
   currentTrackIndex = TRACKS.findIndex((t) => t.audio === audioUrl);
   const track = TRACKS[currentTrackIndex];
+  const videoUrl = track?.videoUrl || "";
 
   if (track) {
-    fetchTrackLikes(track.id)
-      .then(updatePlayerLikes)
-      .catch(console.error);
+    fetchTrackLikes(track.id).then(updatePlayerLikes).catch(console.error);
   }
 
   // Immediately increment platform plays in DB and UI
@@ -1121,8 +1275,19 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
       .catch(console.error);
   }
 
-  const uuidMatch = audioUrl.match(/([a-f0-9\-]{36})\.mp3/i);
-  currentPlayingUUID = uuidMatch ? uuidMatch[1] : null;
+  // Use the track ID directly when available.
+  // This works for Suno (.mp3), Flow Music (.m4a), and other formats.
+  currentPlayingUUID = track?.id || null;
+
+  // extract UUID from the audio URL if the track
+  // wasn't found in TRACKS.
+  if (!currentPlayingUUID && audioUrl) {
+    const uuidMatch = audioUrl.match(
+      /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i,
+    );
+
+    currentPlayingUUID = uuidMatch ? uuidMatch[1] : null;
+  }
 
   // Clear mobile lyrics preview
   const preview = document.getElementById("mobile_lyrics_preview");
@@ -1163,14 +1328,19 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
   if (title) document.getElementById("player_track_title").textContent = title;
   if (artist)
     document.getElementById("player_track_artist").textContent = artist;
-  if (imgUrl) document.getElementById("player_track_img").src = imgUrl;
+  updateMedia("player_track_img", "player_track_video", imgUrl, videoUrl);
 
   // Update mobile (mini)
   if (title)
     document.getElementById("player_track_title_mobile").textContent = title;
   if (artist)
     document.getElementById("player_track_artist_mobile").textContent = artist;
-  if (imgUrl) document.getElementById("player_track_img_mobile").src = imgUrl;
+  updateMedia(
+    "player_track_img_mobile",
+    "player_track_video_mobile",
+    imgUrl,
+    videoUrl,
+  );
 
   // Update mobile (full)
   if (title) {
@@ -1181,10 +1351,12 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
     const artistFull = document.getElementById("player_track_artist_full");
     if (artistFull) artistFull.textContent = artist;
   }
-  if (imgUrl) {
-    const imgFull = document.getElementById("player_track_img_full");
-    if (imgFull) imgFull.src = imgUrl;
-  }
+  updateMedia(
+    "player_track_img_full",
+    "player_track_video_full",
+    imgUrl,
+    videoUrl,
+  );
 
   // Update desktop lyrics overlay
   if (title) {
@@ -1213,17 +1385,7 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
     const rowArtist = document.getElementById("track_detail_row_artist");
     if (rowArtist) rowArtist.textContent = artist;
   }
-  if (imgUrl) {
-    const detailImg = document.getElementById("track_detail_img");
-    // Check if it's an img tag or div with background
-    if (detailImg) {
-      if (detailImg.tagName.toLowerCase() === "img") {
-        detailImg.src = imgUrl;
-      } else {
-        detailImg.style.backgroundImage = `url('${imgUrl}')`;
-      }
-    }
-  }
+  updateMedia("track_detail_img", "track_detail_video", imgUrl, videoUrl);
 
   // Auto-fetch lyrics for mobile preview & cache
   if (currentPlayingUUID) {
@@ -1251,7 +1413,7 @@ window.playSunoURL = function (url) {
 
 async function fetchTrackLikes(trackId) {
   const res = await fetch(
-    `${API_BASE_URL}/api/likes?id=${encodeURIComponent(trackId)}&user=${encodeURIComponent(floGlobals.myFloID)}`
+    `${API_BASE_URL}/api/likes?id=${encodeURIComponent(trackId)}&user=${encodeURIComponent(floGlobals.myFloID)}`,
   );
 
   return await res.json();
@@ -1262,7 +1424,7 @@ async function toggleTrackLike(trackId) {
     `${API_BASE_URL}/api/likes?id=${encodeURIComponent(trackId)}&user=${encodeURIComponent(floGlobals.myFloID)}`,
     {
       method: "POST",
-    }
+    },
   );
 
   return await res.json();
@@ -1273,16 +1435,14 @@ function updatePlayerLikes(data) {
     "player_heart",
     "player_heart_mobile",
     "player_heart_full",
-    "player_heart_detail"
+    "player_heart_detail",
   ];
 
   hearts.forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
 
-    el.style.fontVariationSettings = data.liked
-      ? "'FILL' 1"
-      : "'FILL' 0";
+    el.style.fontVariationSettings = data.liked ? "'FILL' 1" : "'FILL' 0";
 
     el.classList.toggle("text-primary-fixed-dim", data.liked);
     el.classList.toggle("text-outline", !data.liked);
@@ -1394,15 +1554,33 @@ async function fetchLivePlaysQueue(tracks, gridPrefix = "explore") {
     if (!track.id) continue;
 
     try {
-      // Fetch Suno Plays from Oracle (only if we have a source URL to scrape)
-      let sunoPlays = track.playCount || 0;
-      if (track.sunoUrl) {
-        const sunoRes = await fetch(
-          `${API_BASE_URL}/api/suno-plays?url=${encodeURIComponent(track.sunoUrl)}`,
-        );
-        if (sunoRes.ok) {
-          const data = await sunoRes.json();
-          sunoPlays = data.playCount || track.playCount || 0;
+      // Fetch live source plays from the correct platform endpoint.
+      let sourcePlays = track.playCount || 0;
+
+      if (track.sourceUrl) {
+        let endpoint = null;
+
+        if (track.platform === "suno") {
+          endpoint = `${API_BASE_URL}/api/suno-plays?url=${encodeURIComponent(
+            track.sourceUrl,
+          )}`;
+        } else if (track.platform === "flowmusic") {
+          endpoint = `${API_BASE_URL}/api/google-flow-plays?url=${encodeURIComponent(
+            track.sourceUrl,
+          )}`;
+        }
+
+        if (endpoint) {
+          const sourceRes = await fetch(endpoint);
+
+          if (sourceRes.ok) {
+            const data = await sourceRes.json();
+
+            if (data.success && typeof data.playCount === "number") {
+              sourcePlays = data.playCount;
+              track.playCount = sourcePlays;
+            }
+          }
         }
       }
 
@@ -1419,13 +1597,17 @@ async function fetchLivePlaysQueue(tracks, gridPrefix = "explore") {
         track.marketPlayCount = platformPlays;
       }
 
-      const sunoEl = document.getElementById(`sunoplays-${gridPrefix}-${track.id}`);
-      if (sunoEl) {
-        sunoEl.textContent = sunoPlays.toLocaleString();
-        sunoEl.classList.add("text-secondary-fixed-dim");
+      const sourceEl = document.getElementById(
+        `sourceplays-${gridPrefix}-${track.id}`,
+      );
+      if (sourceEl) {
+        sourceEl.textContent = sourcePlays.toLocaleString();
+        sourceEl.classList.add("text-secondary-fixed-dim");
       }
 
-      const marketEl = document.getElementById(`marketplays-${gridPrefix}-${track.id}`);
+      const marketEl = document.getElementById(
+        `marketplays-${gridPrefix}-${track.id}`,
+      );
       if (marketEl) {
         marketEl.textContent = platformPlays.toLocaleString();
         // Store raw number for instant incrementing
