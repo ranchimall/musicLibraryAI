@@ -109,6 +109,7 @@
         }
     </script>
     <link href="style.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
     <script id="floGlobals">
         const floGlobals = {
             blockchain: "FLO",
@@ -136,6 +137,8 @@
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/void-57/cardano-wallet-test@main/cardano-crypto.iife.js"></script>
     <script src="https://unpkg.com/uhtml@3.0.1/es.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="scripts/components.js" defer></script>
     <script src="scripts/keccak.js"></script>
     <script src="scripts/tap_combined.js"></script>
@@ -179,6 +182,12 @@
             }
             if (pageId === 'page_dashboard' && typeof loadDashboardUploads === 'function') {
                 loadDashboardUploads();
+            }
+            if (pageId === 'page_marketplace' && typeof renderMarketplace === 'function') {
+                renderMarketplace();
+            }
+            if (pageId === 'page_upload' && typeof loadUploadCategories === 'function') {
+                loadUploadCategories();
             }
         }
 
@@ -548,6 +557,8 @@
                         onclick="routeTo('page_dashboard')">Dashboard</a>
                     <a href="#" class="text-outline hover:text-white font-label-lg transition-colors"
                         onclick="routeTo('page_creator_profile')">Profile</a>
+                    <a href="#" class="text-outline hover:text-white font-label-lg transition-colors"
+                        onclick="routeTo('page_marketplace')">Marketplace</a>
                     <a href="#" class="text-outline font-label-lg transition-colors hover:text-white"
                         onclick="routeTo('page_upload')">Upload</a>
                 </nav>
@@ -998,6 +1009,296 @@
             </div>
         </section>
         <!-- END page_dashboard -->
+
+        <!-- START page_marketplace -->
+        <section id="page_marketplace" class="inner-page hidden w-full relative pt-20 pb-32">
+            <div class="p-margin-mobile md:p-margin-desktop max-w-7xl mx-auto space-y-gutter">
+
+                <!-- Header -->
+                <div class="flex items-end justify-between border-b border-white/5 pb-4">
+                    <div>
+                        <h1
+                            class="font-display-lg text-display-lg-mobile md:text-display-lg font-bold tracking-tight text-on-surface">
+                            MARKET<span class="text-primary-fixed-dim">PLACE</span>
+                        </h1>
+                        <p class="font-code-sm text-code-sm text-outline mt-1">Top-ranked Lyrics, Music, Vocals &amp;
+                            Marketing, tokenized as tradeable Properties &mdash; or back and invest in creators
+                            directly</p>
+                    </div>
+                </div>
+
+                <!-- Category + Component selectors -->
+                <div class="flex flex-col sm:flex-row gap-sm">
+                    <div id="marketplace_category_select_wrap"
+                        class="relative flex items-center gap-xs px-sm md:px-md py-sm bg-surface-container-low border border-white/10 rounded-lg focus-within:border-primary-fixed-dim/50 transition-colors sm:w-64 shrink-0">
+                        <span class="material-symbols-outlined text-outline text-sm shrink-0">category</span>
+                        <select id="marketplace_category_select"
+                            class="bg-transparent border-none flex-1 min-w-0 truncate text-on-surface font-code-sm text-code-sm outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none appearance-none cursor-pointer"
+                            aria-label="Select category" style="color-scheme: dark;">
+                            <option value="">Loading categories...</option>
+                        </select>
+                        <button id="marketplace_add_category_btn" onclick="toggleMarketplaceAddCategoryForm()" title="Add category (admin)"
+                            class="hidden shrink-0 flex items-center justify-center w-6 h-6 rounded text-outline hover:text-primary-fixed-dim hover:bg-white/5 transition-colors">
+                            <span class="material-symbols-outlined text-base">add</span>
+                        </button>
+                    </div>
+                    <div id="marketplace_component_tabs"
+                        class="flex items-center gap-1 p-1 bg-surface-container-low border border-white/10 rounded-lg overflow-x-auto">
+                        <button data-component="lyrics"
+                            class="marketplace-tab-btn shrink-0 px-md py-xs rounded font-label-caps text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceComponent('lyrics')">Lyrics</button>
+                        <button data-component="music"
+                            class="marketplace-tab-btn shrink-0 px-md py-xs rounded font-label-caps text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceComponent('music')">Music</button>
+                        <button data-component="vocals"
+                            class="marketplace-tab-btn shrink-0 px-md py-xs rounded font-label-caps text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceComponent('vocals')">Vocals</button>
+                        <button data-component="marketing"
+                            class="marketplace-tab-btn shrink-0 px-md py-xs rounded font-label-caps text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceComponent('marketing')">Marketing</button>
+                        <button data-component="financing"
+                            class="marketplace-tab-btn shrink-0 px-md py-xs rounded font-label-caps text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceComponent('financing')">Financing</button>
+                    </div>
+                </div>
+
+                <!-- Add-category form (admin-only on the backend, hidden by default) -->
+                <div id="marketplace_add_category_form" class="hidden glass-panel rounded-xl p-md">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-sm items-end">
+                        <div>
+                            <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Slug</label>
+                            <input id="marketplace_new_category_slug" type="text"
+                                class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                placeholder="lofi-hiphop" />
+                        </div>
+                        <div>
+                            <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Name</label>
+                            <input id="marketplace_new_category_name" type="text"
+                                class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                placeholder="Lo-fi Hip Hop" />
+                        </div>
+                        <button onclick="handleMarketplaceAddCategory()"
+                            class="flex items-center justify-center gap-xs px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">
+                            <span class="material-symbols-outlined text-base">add</span>
+                            Add
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Property panel (populated once a property exists for the selected category/component) -->
+                <div id="marketplace_property_panel" class="hidden space-y-gutter">
+
+                    <!-- Stats row -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-gutter">
+                        <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <span class="material-symbols-outlined text-primary-fixed-dim/60">payments</span>
+                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Price</span>
+                            </div>
+                            <div class="font-display-lg text-[28px] text-primary-fixed-dim" id="marketplace_stat_price">--
+                            </div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <span class="material-symbols-outlined text-primary-fixed-dim/60">trending_up</span>
+                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Scarcity</span>
+                            </div>
+                            <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_scarcity">--
+                            </div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <span class="material-symbols-outlined text-primary-fixed-dim/60">bolt</span>
+                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Utility</span>
+                            </div>
+                            <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_utility">--
+                            </div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <span class="material-symbols-outlined text-primary-fixed-dim/60">grid_view</span>
+                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Slots</span>
+                            </div>
+                            <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_slots">--
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interest bar -->
+                    <div class="glass-panel rounded-xl p-md flex items-center justify-between gap-md">
+                        <p class="font-code-sm text-code-sm text-outline hidden sm:block">Signal your intent — this
+                            feeds the scarcity score</p>
+                        <div class="flex items-center gap-sm w-full sm:w-auto">
+                            <button onclick="handleMarketplaceInterest('want_to_buy')"
+                                title="I want to buy"
+                                class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 text-primary-fixed-dim font-label-caps text-[10px] tracking-widest uppercase hover:bg-primary-fixed-dim/20 active:scale-95 transition-all">
+                                <span class="material-symbols-outlined text-base">add_shopping_cart</span>
+                                <span class="hidden sm:inline">Want to buy</span>
+                            </button>
+                            <button onclick="handleMarketplaceInterest('want_to_sell')"
+                                title="I want to sell"
+                                class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10 active:scale-95 transition-all">
+                                <span class="material-symbols-outlined text-base">sell</span>
+                                <span class="hidden sm:inline">Want to sell</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Slots grid -->
+                    <div>
+                        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs mb-lg">
+                            <span class="material-symbols-outlined text-primary-fixed-dim">grid_view</span>
+                            Slots
+                        </h2>
+                        <div id="marketplace_slots_grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-gutter">
+                            <div class="col-span-full text-center text-outline py-8 font-code-sm">Loading slots...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty state: no property yet for this category/component -->
+                <div id="marketplace_empty_state" class="hidden glass-panel rounded-xl p-xl text-center">
+                    <span class="material-symbols-outlined text-outline text-4xl mb-md">hourglass_empty</span>
+                    <p class="font-code-sm text-code-sm text-outline">No Property has formed here yet — this
+                        component needs 100 ranked entries in this category before it tokenizes.</p>
+                </div>
+
+                <!-- Loading state -->
+                <div id="marketplace_loading_state" class="glass-panel rounded-xl p-xl text-center">
+                    <span class="material-symbols-outlined text-outline text-2xl animate-spin">progress_activity</span>
+                    <p class="font-code-sm text-code-sm text-outline mt-2">Loading marketplace...</p>
+                </div>
+
+                <!-- Financing panel (task board + invest-in-a-track, shown when the
+                     Financing tab is selected instead of a ranked component) -->
+                <div id="marketplace_financing_panel" class="hidden space-y-gutter">
+
+                    <!-- Invest in an existing track -->
+                    <div class="glass-panel rounded-xl p-md md:p-lg space-y-md">
+                        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
+                            <span class="material-symbols-outlined text-primary-fixed-dim">savings</span>
+                            Invest in a track
+                        </h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-sm items-end">
+                            <div class="sm:col-span-2">
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Track
+                                    ID</label>
+                                <input id="financing_invest_track_id" type="text"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                    placeholder="Track ID" />
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Amount</label>
+                                <input id="financing_invest_amount" type="number" min="0" step="any"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                    placeholder="0.00" />
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Revenue
+                                    share %</label>
+                                <input id="financing_invest_revshare" type="number" min="0" max="100" step="any"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                    placeholder="Optional" />
+                            </div>
+                        </div>
+                        <button onclick="handleFinancingInvest()"
+                            class="w-full sm:w-auto flex items-center justify-center gap-xs px-lg py-sm rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">
+                            <span class="material-symbols-outlined text-base">savings</span>
+                            Invest
+                        </button>
+                    </div>
+
+                    <!-- Task board -->
+                    <div class="space-y-md">
+                        <div
+                            class="flex flex-col sm:flex-row sm:items-center items-start justify-between gap-2 sm:gap-0">
+                            <div>
+                                <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
+                                    <span class="material-symbols-outlined text-primary-fixed-dim">handyman</span>
+                                    Task board
+                                </h2>
+                                <p class="font-code-sm text-code-sm text-outline mt-1">Ask creators to make something -
+                                    lyrics, music, vocals, marketing - and they claim it and deliver a track</p>
+                            </div>
+                            <button id="financing_post_task_btn" onclick="toggleFinancingPostTaskForm()"
+                                title="Post a task"
+                                class="hidden shrink-0 flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10 active:scale-95 transition-all">
+                                <span class="material-symbols-outlined text-base">add</span>
+                                <span class="hidden sm:inline">Post a task</span>
+                            </button>
+                        </div>
+
+                        <!-- Post-a-task form (hidden by default) -->
+                        <div id="financing_post_task_form" class="hidden glass-panel rounded-xl p-md space-y-sm">
+                            <div>
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Brief</label>
+                                <div id="financing_task_brief_editor" class="quill-dark rounded-xl overflow-hidden border border-white/10"></div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-sm max-w-md">
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Task
+                                        type</label>
+                                    <select id="financing_task_component_type"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all appearance-none cursor-pointer"
+                                        style="color-scheme: dark;">
+                                        <option value="">General / unspecified</option>
+                                        <option value="lyrics">Lyrics</option>
+                                        <option value="music">Music</option>
+                                        <option value="vocals">Vocals</option>
+                                        <option value="marketing">Marketing</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Budget
+                                        (optional)</label>
+                                    <input id="financing_task_budget" type="number" min="0" step="any"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
+                                        placeholder="0.00" />
+                                </div>
+                            </div>
+                            <button onclick="handleFinancingPostTask()"
+                                class="flex items-center justify-center gap-xs px-lg py-sm rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">
+                                <span class="material-symbols-outlined text-base">send</span>
+                                Post task
+                            </button>
+                        </div>
+
+                        <!-- Kanban: Open / Claimed / Completed -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+                            <div>
+                                <h3
+                                    class="font-label-caps text-[10px] text-outline uppercase tracking-widest mb-sm flex items-center gap-xs">
+                                    <span class="w-2 h-2 rounded-full bg-primary-fixed-dim"></span>
+                                    Open
+                                </h3>
+                                <div id="financing_task_column_open" class="space-y-sm">
+                                    <div class="text-center text-outline py-8 font-code-sm">Loading...</div>
+                                </div>
+                            </div>
+                            <div>
+                                <h3
+                                    class="font-label-caps text-[10px] text-outline uppercase tracking-widest mb-sm flex items-center gap-xs">
+                                    <span class="w-2 h-2 rounded-full bg-yellow-400"></span>
+                                    Claimed
+                                </h3>
+                                <div id="financing_task_column_claimed" class="space-y-sm"></div>
+                            </div>
+                            <div>
+                                <h3
+                                    class="font-label-caps text-[10px] text-outline uppercase tracking-widest mb-sm flex items-center gap-xs">
+                                    <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                                    Completed
+                                </h3>
+                                <div id="financing_task_column_completed" class="space-y-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </section>
+        <!-- END page_marketplace -->
 
         <!-- START page_creator_profile -->
         <section id="page_creator_profile" class="inner-page hidden w-full relative pt-20 pb-32">
@@ -1570,6 +1871,19 @@
                         </p>
                     </div>
 
+                    <div>
+                        <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Category</label>
+                        <select id="upload_category_select"
+                            class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all appearance-none cursor-pointer"
+                            style="color-scheme: dark;">
+                            <option value="">Loading categories...</option>
+                        </select>
+                        <p class="text-[11px] text-outline mt-2 font-code-sm flex items-center gap-1">
+                            <span class="material-symbols-outlined text-[14px] text-primary-fixed-dim">info</span>
+                            Determines which Marketplace properties this track can rank into.
+                        </p>
+                    </div>
+
                     <!-- Preview Card (Hidden initially) -->
                     <div id="upload_preview_card" class="hidden mt-4 pt-6 border-t border-white/5">
                         <h3 class="font-label-caps text-xs text-primary-fixed-dim tracking-wider mb-4">Track Preview
@@ -1925,6 +2239,11 @@
             <span class="material-symbols-outlined text-2xl">person</span>
             <span class="font-code-sm text-[9px] uppercase tracking-wider">Profile</span>
         </button>
+        <button onclick="routeTo('page_marketplace')"
+            class="flex flex-col items-center justify-center gap-1 w-full h-full text-on-surface-variant transition-colors">
+            <span class="material-symbols-outlined text-2xl">storefront</span>
+            <span class="font-code-sm text-[9px] uppercase tracking-wider">Market</span>
+        </button>
         <button onclick="routeTo('page_upload')"
             class="flex flex-col items-center justify-center gap-1 w-full h-full text-on-surface-variant hover:text-primary-fixed-dim transition-colors">
             <span class="material-symbols-outlined text-2xl">upload</span>
@@ -1934,6 +2253,9 @@
     <script src="scripts/config.js"></script>
     <script src="scripts/toast.js"></script>
     <script src="scripts/track_upload.js" defer></script>
+    <script src="scripts/marketplace-client.js" defer></script>
+    <script src="scripts/marketplace.js" defer></script>
+    <script src="scripts/financing.js" defer></script>
     <script src="scripts/main.js" defer></script>
     </div>
     <template id="generateKeys">

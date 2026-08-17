@@ -1,13 +1,11 @@
 // -----------------------------------------
-// Upload Flow (multi-platform track scraper)
-// Supports: Suno, Google Flow Music
+// Helps upload tracks from various places easily.
+// Currently works with Suno and Google Flow Music.
 // -----------------------------------------
 
 let currentUploadTrackData = null;
 
-// Per-platform metadata, used both here (extraction/UI) and in main.js's
-// trackCardHtml (badges/labels on published cards). Add a new entry here
-// plus an extract*Data() function below to support another platform.
+// Settings for different platforms so we know how to handle them.
 const PLATFORM_CONFIG = {
   suno: {
     match: (url) => /suno\.com/i.test(url),
@@ -32,7 +30,7 @@ function detectPlatform(url) {
   );
 }
 
-// ---- Suno extraction ----
+// ---- Getting details from Suno ----
 function extractSunoData(html, targetUrl) {
   const canonicalMatch = html.match(
     /<link rel="canonical" href="https:\/\/suno\.com\/song\/([a-f0-9\-]{36})"/i,
@@ -57,6 +55,11 @@ function extractSunoData(html, targetUrl) {
   let playCount = 0;
   const playCountMatch = html.match(/play_count\\?["']?\s*:\s*(\d+)/i);
   if (playCountMatch) playCount = parseInt(playCountMatch[1], 10);
+
+  // We try our best to figure out if there are vocals, assuming yes by default.
+  let hasVocals = true;
+  const hasVocalMatch = html.match(/has_vocal\\?["']?\s*:\s*(true|false)/i);
+  if (hasVocalMatch) hasVocals = hasVocalMatch[1] === "true";
 
   let lyrics = "";
   const promptMatch = html.match(
@@ -113,26 +116,18 @@ function extractSunoData(html, targetUrl) {
     audioUrl,
     playCount,
     lyrics,
+    hasVocals,
     sourceUrl: targetUrl,
     platform: "suno",
   };
 }
 
-// ---- Google Flow Music extraction ----
-// Flow Music's share pages expose clean OG/meta tags, including a direct
-// playable audio URL (no CDN-URL-guessing needed) and a dedicated artist
-// tag - much simpler than Suno's hydration-JSON scraping.
-//
-// NOTE: play count / lyrics are rendered client-side from Flow Music's own
-// hydration data (shown on the page as abbreviated numbers like "16.9k").
-// The regexes below are a best-effort guess at the underlying field names
-// and haven't been verified against a live CORS-proxied fetch - if they
-// come back empty, inspect the raw HTML (view-source, not devtools) for
-// the actual key names and adjust.
+// ---- Getting details from Google Flow Music ----
+// We grab the important information right off their page so it's ready to use.
 
 async function extractFlowMusicData(html, targetUrl) {
   // ---------------------------------------------------------
-  // 1. Extract Flow song UUID from the URL
+  // 1. Find the song's unique identifier
   // ---------------------------------------------------------
   const urlMatch = targetUrl.match(/\/song\/([a-f0-9-]{36})/i);
 
@@ -143,7 +138,7 @@ async function extractFlowMusicData(html, targetUrl) {
   }
 
   // ---------------------------------------------------------
-  // 2. Basic metadata from OG tags
+  // 2. Get the basic info we need
   // ---------------------------------------------------------
   const audioMatch = html.match(
     /<meta\s+property=["']og:audio["']\s+content=["']([^"']+)["']/i,
@@ -187,13 +182,7 @@ async function extractFlowMusicData(html, targetUrl) {
   }
 
   // ---------------------------------------------------------
-  // 3. Try to extract author_id from Flow's NEXT_DATA
-  // ---------------------------------------------------------
-  //
-  // Flow page contains:
-  //
-  // "author_id":"3ecfbdce-67c4-47fe-b2a6-5af80588c791"
-  //
+  // 3. See if we can find out who made this
   // ---------------------------------------------------------
 
   let authorId = null;
@@ -207,15 +196,7 @@ async function extractFlowMusicData(html, targetUrl) {
   }
 
   // ---------------------------------------------------------
-  // 4. Fallback: extract author ID from profile image URL
-  // ---------------------------------------------------------
-  //
-  // Example:
-  //
-  // /user-metadata/
-  // 3ecfbdce-67c4-47fe-b2a6-5af80588c791/
-  // profile.jpg
-  //
+  // 4. Try another way to find the creator if the first didn't work
   // ---------------------------------------------------------
 
   if (!authorId) {
@@ -232,14 +213,14 @@ async function extractFlowMusicData(html, targetUrl) {
   console.log("Flow author ID:", authorId);
 
   // ---------------------------------------------------------
-  // 5. Initial values
+  // 5. Set up some starting defaults
   // ---------------------------------------------------------
 
   let playCount = 0;
   let lyrics = "";
 
   // ---------------------------------------------------------
-  // 6. Best-effort extraction directly from HTML
+  // 6. Grab what we can directly from the page
   // ---------------------------------------------------------
 
   const playCountMatch = html.match(
@@ -263,7 +244,7 @@ async function extractFlowMusicData(html, targetUrl) {
   }
 
   // ---------------------------------------------------------
-  // 7. If we have author_id, query Flow's clips API
+  // 7. If we know the creator, ask for more details
   // ---------------------------------------------------------
 
   if (authorId) {
@@ -275,13 +256,7 @@ async function extractFlowMusicData(html, targetUrl) {
       console.log("Fetching Flow clips API:", flowApiUrl);
 
       /*
-       * IMPORTANT:
-       *
-       * If your backend can directly fetch flowmusic.app,
-       * use flowApiUrl directly.
-       *
-       * If this code runs in the browser and CORS blocks it,
-       * keep your existing CORS proxy here.
+       * We use a helper to get around browser restrictions when asking for data.
        */
 
       const proxyUrl =
@@ -298,7 +273,7 @@ async function extractFlowMusicData(html, targetUrl) {
       console.log("Flow clips API response:", data);
 
       // -----------------------------------------------------
-      // 8. Find the exact song
+      // 8. Make sure we have the right song
       // -----------------------------------------------------
 
       const clips = data.clips || data.data || data.results || [];
@@ -309,7 +284,7 @@ async function extractFlowMusicData(html, targetUrl) {
         console.log("Found exact Flow clip:", clip);
 
         // ---------------------------------------------------
-        // Lyrics
+        // Get the lyrics
         // ---------------------------------------------------
 
         if (
@@ -330,7 +305,7 @@ async function extractFlowMusicData(html, targetUrl) {
         }
 
         // ---------------------------------------------------
-        // Play count
+        // How many times has this been played?
         // ---------------------------------------------------
 
         if (clip.play_count !== undefined) {
@@ -340,7 +315,7 @@ async function extractFlowMusicData(html, targetUrl) {
         }
 
         // ---------------------------------------------------
-        // Metadata fallbacks
+        // Fill in anything that might be missing
         // ---------------------------------------------------
 
         if (clip.title) {
@@ -348,8 +323,7 @@ async function extractFlowMusicData(html, targetUrl) {
         }
 
         if (clip.audio_url) {
-          // Prefer the actual Flow audio URL
-          // only if OG audio wasn't available.
+          // Use this sound file if we didn't already find one.
           if (!audioUrl) {
             audioUrl = clip.audio_url;
           }
@@ -384,7 +358,7 @@ async function extractFlowMusicData(html, targetUrl) {
   }
 
   // ---------------------------------------------------------
-  // 9. Return normalized track object
+  // 9. Hand back everything we collected
   // ---------------------------------------------------------
 
   return {
@@ -396,6 +370,8 @@ async function extractFlowMusicData(html, targetUrl) {
     videoUrl,
     playCount,
     lyrics,
+    // We assume it has vocals by default since it's hard to tell for sure.
+    hasVocals: true,
     sourceUrl: targetUrl,
     platform: "flowmusic",
     authorId,
@@ -422,7 +398,7 @@ async function fetchTrackData() {
     fetchBtn.classList.add("opacity-50", "pointer-events-none");
     previewCard.classList.add("hidden");
 
-    // Use a CORS proxy to fetch the page HTML from the browser
+    // We use a helpful service to grab the page contents smoothly.
     const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
     const response = await fetch(proxyUrl);
     if (!response.ok) throw new Error("Failed to fetch the page via proxy");
@@ -463,8 +439,7 @@ async function fetchTrackData() {
     document.getElementById("preview_lyrics_status").textContent =
       currentUploadTrackData.lyrics ? "Included" : "None";
 
-    // Show a manual lyrics box only when extraction found nothing, so the
-    // user can add their own before publishing.
+    // Let the user type in lyrics themselves if we couldn't find any.
     const manualLyricsSection = document.getElementById(
       "manual_lyrics_section",
     );
@@ -495,8 +470,7 @@ async function fetchTrackData() {
   }
 }
 
-// Keeps currentUploadTrackData.lyrics in sync as the user types into the
-// manual lyrics box, and updates the "Lyrics" status shown in the preview.
+// Updates the track with lyrics as the user types them in.
 function onManualLyricsInput() {
   const manualLyricsInput = document.getElementById("manual_lyrics_input");
   if (!currentUploadTrackData || !manualLyricsInput) return;
@@ -512,10 +486,51 @@ function onManualLyricsInput() {
 }
 window.onManualLyricsInput = onManualLyricsInput;
 
+// Fills out the choices for categories when someone goes to upload a track.
+async function loadUploadCategories() {
+  const select = document.getElementById("upload_category_select");
+  if (!select) return;
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/categories`);
+    const data = await res.json();
+    if (!data.success || !data.categories.length) {
+      select.innerHTML = `<option value="">No categories yet</option>`;
+      return;
+    }
+
+    select.innerHTML = data.categories
+      .map((c) => `<option value="${c.slug}">${c.name}</option>`)
+      .join("");
+  } catch (err) {
+    console.error("Failed to load categories:", err);
+    select.innerHTML = `<option value="">Failed to load categories</option>`;
+  }
+}
+window.loadUploadCategories = loadUploadCategories;
+
+// Tells the marketplace about this track so it can be discovered.
+// It tries its best, but won't ruin the whole upload if something minor goes wrong.
+async function registerTrackComponents(trackId, categorySlug, trackData) {
+  if (!categorySlug) return;
+
+  const componentsToRegister = ["music"];
+  if (trackData.lyrics) componentsToRegister.push("lyrics");
+  if (trackData.hasVocals) componentsToRegister.push("vocals");
+
+  for (const componentType of componentsToRegister) {
+    try {
+      await marketplaceRegisterComponent(trackId, categorySlug, componentType);
+    } catch (err) {
+      console.error(`Failed to register ${componentType} component:`, err);
+    }
+  }
+}
+
 async function publishTrack() {
   if (!currentUploadTrackData) return;
 
-  // Prevent duplicate uploads
+  // Don't let the same track get added twice.
   if (
     Array.isArray(TRACKS) &&
     TRACKS.some((track) => track.id === currentUploadTrackData.uuid)
@@ -545,10 +560,18 @@ async function publishTrack() {
       lyrics: currentUploadTrackData.lyrics || "",
     };
 
-    // Write to Supernode Cloud
+    // Save the track online safely.
     await floCloudAPI.sendApplicationData(trackData, "MusicLibrary_Track");
 
-    // Keep local track list in sync immediately
+    // List this track in the marketplace if a category is chosen.
+    const categorySlug = document.getElementById("upload_category_select")?.value;
+    if (categorySlug) {
+      await registerTrackComponents(trackData.id, categorySlug, currentUploadTrackData);
+    } else {
+      console.warn("No category selected - track will not be registered as a marketplace component.");
+    }
+
+    // Update what we see here right away so it feels instant.
     TRACKS.unshift({
       id: trackData.id,
       title: trackData.title,
@@ -572,12 +595,12 @@ async function publishTrack() {
     document.getElementById("manual_lyrics_input").value = "";
     currentUploadTrackData = null;
 
-    // Refresh the tracks list if it's implemented (or just route to explore)
+    // Get the latest tracks if we can, then move along.
     if (typeof loadTracksFromCloud === "function") {
       await loadTracksFromCloud();
     }
 
-    // Redirect to library or explore
+    // Take the user to see the music.
     routeTo("page_explore");
   } catch (err) {
     showToast("Failed to publish track.", "error");

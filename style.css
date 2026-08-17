@@ -23,8 +23,10 @@ body {
 }
 
 .neural-mesh {
-  background-image: radial-gradient(rgba(0, 219, 233, 0.1) 1px,
-      transparent 1px);
+  background-image: radial-gradient(
+    rgba(0, 219, 233, 0.1) 1px,
+    transparent 1px
+  );
   background-size: 32px 32px;
 }
 
@@ -33,7 +35,6 @@ body {
 }
 
 @keyframes pulse-cyan {
-
   0%,
   100% {
     opacity: 0.5;
@@ -155,34 +156,34 @@ keys-generator .kg-footer {
 
   padding: 16px 20px;
 
-  background: rgba(20, 20, 20, .92);
+  background: rgba(20, 20, 20, 0.92);
   backdrop-filter: blur(14px);
 
   color: #e5e2e1;
 
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, .08);
-  border-left: 4px solid #00DBE9;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 4px solid #00dbe9;
 
-  box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 
-  animation: toast-slide .25s ease;
+  animation: toast-slide 0.25s ease;
 }
 
 .toast.success {
-  border-left-color: #00DBE9;
+  border-left-color: #00dbe9;
 }
 
 .toast.warning {
-  border-left-color: #F59E0B;
+  border-left-color: #f59e0b;
 }
 
 .toast.error {
-  border-left-color: #EF4444;
+  border-left-color: #ef4444;
 }
 
 .toast.info {
-  border-left-color: #00DBE9;
+  border-left-color: #00dbe9;
 }
 
 @keyframes toast-slide {
@@ -214,4 +215,83 @@ keys-generator .kg-footer {
     padding: 16px 18px;
     font-size: 15px;
   }
+}
+/* Dark-theme override for Quill's Snow theme - the default is a
+           white toolbar/editor which clashes with this app's dark UI. */
+.quill-dark .ql-toolbar.ql-snow {
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.quill-dark .ql-container.ql-snow {
+  border: none;
+  font-family: inherit;
+}
+.quill-dark .ql-editor {
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  min-height: 120px;
+  font-size: 0.875rem;
+}
+.quill-dark .ql-editor.ql-blank::before {
+  color: rgba(255, 255, 255, 0.35);
+  font-style: normal;
+}
+.quill-dark .ql-snow .ql-stroke {
+  stroke: rgba(255, 255, 255, 0.6);
+}
+.quill-dark .ql-snow .ql-fill,
+.quill-dark .ql-snow .ql-stroke.ql-fill {
+  fill: rgba(255, 255, 255, 0.6);
+}
+.quill-dark .ql-snow .ql-picker {
+  color: rgba(255, 255, 255, 0.6);
+}
+.quill-dark .ql-snow .ql-picker-options {
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.quill-dark .ql-toolbar.ql-snow .ql-picker-label.ql-active,
+.quill-dark .ql-toolbar.ql-snow .ql-picker-item.ql-selected,
+.quill-dark .ql-toolbar.ql-snow button:hover,
+.quill-dark .ql-toolbar.ql-snow button.ql-active {
+  color: #22d3ee;
+}
+.quill-dark .ql-toolbar.ql-snow button:hover .ql-stroke,
+.quill-dark .ql-toolbar.ql-snow button.ql-active .ql-stroke {
+  stroke: #22d3ee;
+}
+.quill-dark .ql-toolbar.ql-snow button:hover .ql-fill,
+.quill-dark .ql-toolbar.ql-snow button.ql-active .ql-fill {
+  fill: #22d3ee;
+}
+/* Rendered task briefs (read-only Quill HTML output) need their own basic typography since Tailwind's base styles strip default margins/list-styles from raw <p>/<ul>/<ol> tags. */
+.task-brief-content p {
+  margin-bottom: 0.5em;
+}
+.task-brief-content ul,
+.task-brief-content ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.5em;
+}
+.task-brief-content ul {
+  list-style: disc;
+}
+.task-brief-content ol {
+  list-style: decimal;
+}
+.task-brief-content h1,
+.task-brief-content h2,
+.task-brief-content h3 {
+  font-weight: 700;
+  margin-bottom: 0.4em;
+}
+.task-brief-content blockquote {
+  border-left: 2px solid rgba(255, 255, 255, 0.2);
+  padding-left: 0.75em;
+  color: rgba(255, 255, 255, 0.7);
+}
+.task-brief-content a {
+  color: #22d3ee;
+  text-decoration: underline;
 }
