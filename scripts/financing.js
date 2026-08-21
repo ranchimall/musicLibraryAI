@@ -233,6 +233,11 @@ async function handleFinancingBackTask(taskId) {
   }
   const revenueSharePct = revshareInput.value ? Number(revshareInput.value) : undefined;
 
+  if (revenueSharePct !== undefined && (revenueSharePct < 0 || revenueSharePct > 100)) {
+    showToast("Revenue share must be between 0 and 100%.", "warning");
+    return;
+  }
+
   try {
     await marketplaceBackTask(taskId, amount, revenueSharePct);
     showToast("Task backed.", "success");
@@ -262,6 +267,11 @@ async function handleFinancingInvest() {
   }
 
   const revenueSharePct = revshareInput.value ? Number(revshareInput.value) : undefined;
+
+  if (revenueSharePct !== undefined && (revenueSharePct < 0 || revenueSharePct > 100)) {
+    showToast("Revenue share must be between 0 and 100%.", "warning");
+    return;
+  }
 
   try {
     await marketplaceInvestInTrack(trackId, amount, revenueSharePct);

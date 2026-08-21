@@ -451,13 +451,40 @@ async function fetchTrackData() {
 
     manualLyricsInput.value = "";
     if (currentUploadTrackData.lyrics) {
-      manualLyricsSection.classList.add("hidden");
-      extractedLyricsSection.classList.remove("hidden");
-      previewLyricsText.textContent = currentUploadTrackData.lyrics;
-    } else {
+      // Lyrics were successfully extracted.
+      // Show them inside the editable textarea.
       manualLyricsSection.classList.remove("hidden");
       extractedLyricsSection.classList.add("hidden");
-      previewLyricsText.textContent = "";
+
+      manualLyricsInput.value = currentUploadTrackData.lyrics;
+
+      const lyricsMessage = manualLyricsSection.querySelector("p");
+      if (lyricsMessage) {
+        lyricsMessage.textContent =
+          "Lyrics were extracted from the source page. You can edit them before publishing.";
+      }
+
+      const statusEl = document.getElementById("preview_lyrics_status");
+      if (statusEl) {
+        statusEl.textContent = "Included (extracted)";
+      }
+    } else {
+      // No lyrics were found.
+      manualLyricsSection.classList.remove("hidden");
+      extractedLyricsSection.classList.add("hidden");
+
+      manualLyricsInput.value = "";
+
+      const lyricsMessage = manualLyricsSection.querySelector("p");
+      if (lyricsMessage) {
+        lyricsMessage.textContent =
+          "Lyrics were not found on the source page. You can add them before publishing.";
+      }
+
+      const statusEl = document.getElementById("preview_lyrics_status");
+      if (statusEl) {
+        statusEl.textContent = "None";
+      }
     }
 
     previewCard.classList.remove("hidden");
@@ -480,7 +507,7 @@ function onManualLyricsInput() {
   const statusEl = document.getElementById("preview_lyrics_status");
   if (statusEl) {
     statusEl.textContent = currentUploadTrackData.lyrics
-      ? "Included (manual)"
+      ? "Included (edited)"
       : "None";
   }
 }
@@ -517,10 +544,20 @@ async function registerTrackComponents(trackId, categorySlug, trackData) {
   const componentsToRegister = ["music"];
   if (trackData.lyrics) componentsToRegister.push("lyrics");
   if (trackData.hasVocals) componentsToRegister.push("vocals");
-
+  const metadata = {
+    title: trackData.title,
+    artist: trackData.artist,
+    platform: trackData.platform,
+    audio: trackData.audioUrl,
+    cover: trackData.image,
+    sourceUrl: trackData.sourceUrl,
+    playCount: trackData.playCount || 0,
+    videoUrl: trackData.videoUrl || "",
+    lyrics: trackData.lyrics || "",
+  };
   for (const componentType of componentsToRegister) {
     try {
-      await marketplaceRegisterComponent(trackId, categorySlug, componentType);
+      await marketplaceRegisterComponent(trackId, categorySlug, componentType, metadata);
     } catch (err) {
       console.error(`Failed to register ${componentType} component:`, err);
     }
