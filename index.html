@@ -483,6 +483,78 @@
         </div>
     </div>
 
+    <!-- USDAI payment key prompt: shown once per money-moving action (token buy, invest in track, back task/property). The key is used for that single on-chain payment and never stored. -->
+    <div id="usdai_key_prompt"
+        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
+        <div
+            class="w-full max-w-md bg-surface p-6 md:p-8 rounded-xl border border-white/10 shadow-2xl relative mx-4 md:mx-0">
+            <button onclick="resolveUsdaiKeyPrompt(false)"
+                class="absolute top-4 right-4 text-white hover:text-primary-fixed-dim bg-transparent border-none">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest mb-2">Authorize
+                payment</h3>
+            <p class="font-code-sm text-xs text-outline mb-4">Paste the private key that holds your USDAI. Used once — never saved.</p>
+            <input id="usdai_key_prompt_input" type="password"
+                class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim mb-2"
+                placeholder="Private key" />
+            <div id="usdai_key_prompt_balance" class="hidden mb-4 rounded-lg bg-black/30 border border-white/5 p-3 space-y-1">
+                <div class="flex items-center justify-between font-code-sm text-[11px]">
+                    <span class="text-outline">Wallet</span>
+                    <span id="usdai_key_prompt_floid" class="text-primary-fixed-dim truncate max-w-[12rem]">—</span>
+                </div>
+                <div class="flex items-center justify-between font-code-sm text-xs">
+                    <span class="text-outline">USDAI balance</span>
+                    <span id="usdai_key_prompt_usdai" class="text-white font-semibold">—</span>
+                </div>
+                <div class="flex items-center justify-between font-code-sm text-xs">
+                    <span class="text-outline">FLO (for fee)</span>
+                    <span id="usdai_key_prompt_flo" class="text-white">—</span>
+                </div>
+                <p id="usdai_key_prompt_flo_warn" class="hidden font-code-sm text-[11px] text-amber-400">Low FLO — need ~0.0003 for network fee.</p>
+            </div>
+            <div class="flex flex-wrap gap-sm">
+                <button onclick="resolveUsdaiKeyPrompt(true)"
+                    class="flex-1 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Confirm</button>
+                <button onclick="resolveUsdaiKeyPrompt(false)"
+                    class="px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Small loading screen while payment is sending -->
+    <div id="marketplace_buy_loading"
+        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 hidden backdrop-blur-md p-4">
+        <div class="w-full max-w-sm bg-surface p-8 rounded-xl border border-white/10 shadow-2xl text-center space-y-4">
+            <span class="material-symbols-outlined text-primary-fixed-dim text-3xl animate-spin">progress_activity</span>
+            <p id="marketplace_buy_loading_text" class="font-code-sm text-sm text-outline">Sending on-chain…</p>
+        </div>
+    </div>
+
+    <!-- Small loading screen for investing/backing -->
+    <div id="financing_loading"
+        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 hidden backdrop-blur-md p-4">
+        <div class="w-full max-w-sm bg-surface p-8 rounded-xl border border-white/10 shadow-2xl text-center space-y-4">
+            <span class="material-symbols-outlined text-primary-fixed-dim text-3xl animate-spin">progress_activity</span>
+            <p id="financing_loading_text" class="font-code-sm text-sm text-outline">Sending on-chain…</p>
+        </div>
+    </div>
+
+    <!-- Popup that shows if payment worked or failed -->
+    <div id="marketplace_tx_result_popup"
+        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 hidden backdrop-blur-md p-4"
+        onclick="if(event.target===this) closeMarketplaceTxResult()">
+        <div class="w-full max-w-md bg-surface p-6 md:p-8 rounded-xl border border-white/10 shadow-2xl relative">
+            <button onclick="closeMarketplaceTxResult()"
+                class="absolute top-4 right-4 text-white hover:text-primary-fixed-dim bg-transparent border-none">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <div id="marketplace_tx_result"></div>
+            <button onclick="closeMarketplaceTxResult()"
+                class="mt-6 w-full py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Done</button>
+        </div>
+    </div>
+
     <div id="profile_popup_container"
         class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
         <div
@@ -1023,7 +1095,7 @@
                             class="font-display-lg text-display-lg-mobile md:text-display-lg font-bold tracking-tight text-on-surface">
                             MARKET<span class="text-primary-fixed-dim">PLACE</span>
                         </h1>
-                        <p class="font-code-sm text-code-sm text-outline mt-1">Invest in music creation from start to finish. Trade slots in hit songs or back creators directly.</p>
+                        <p class="font-code-sm text-code-sm text-outline mt-1">Invest in music creation from start to finish. Hold the Main Token or back creators directly.</p>
                     </div>
                 </div>
 
@@ -1043,13 +1115,19 @@
                         </button>
                     </div>
                     <div id="marketplace_view_tabs"
-                        class="flex items-center gap-1 p-1 bg-surface-container-low border border-white/10 rounded-lg overflow-x-auto">
+                        class="flex items-stretch gap-1 p-1 bg-surface-container-low border border-white/10 rounded-lg overflow-x-auto scrollbar-none">
                         <button data-view="properties"
-                            class="marketplace-tab-btn shrink-0 px-md py-xs rounded font-label-caps text-[10px] tracking-widest uppercase transition-all"
+                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
                             onclick="setMarketplaceView('properties')">Properties</button>
+                        <button data-view="token"
+                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceView('token')">Token</button>
                         <button data-view="financing"
-                            class="marketplace-tab-btn shrink-0 px-md py-xs rounded font-label-caps text-[10px] tracking-widest uppercase transition-all"
+                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
                             onclick="setMarketplaceView('financing')">Financing</button>
+                        <button data-view="taskboard"
+                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceView('taskboard')">Taskboard</button>
                     </div>
                     <label id="marketplace_top100_toggle_wrap"
                         class="flex items-center gap-xs px-md py-sm bg-surface-container-low border border-white/10 rounded-lg cursor-pointer shrink-0">
@@ -1116,6 +1194,97 @@
                     </div>
                 </div>
 
+                <!-- Main Token panel: global price, buy with USDAI, queue a sell, portfolio -->
+                <div id="marketplace_token_panel" class="glass-panel rounded-xl p-md space-y-sm">
+                    <div class="flex items-center justify-between flex-wrap gap-sm">
+                        <h3
+                            class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                            <span class="material-symbols-outlined text-base">token</span>
+                            Main Token
+                        </h3>
+                        <div class="flex items-center flex-wrap gap-md font-code-sm text-xs text-outline">
+                            <span>Price: <span id="marketplace_token_price" class="text-primary-fixed-dim">--</span></span>
+                            <span>Supply: <span id="marketplace_token_supply">--</span></span>
+                            <span>System valuation: <span id="marketplace_token_valuation">--</span></span>
+                            <span>Your balance: <span id="marketplace_token_balance">--</span></span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter pt-sm border-t border-white/5">
+                        <!-- Buy -->
+                        <div class="space-y-sm">
+                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest flex items-center gap-1">Buy with USDAI
+                                <span class="group relative inline-flex">
+                                    <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
+                                    <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Your key sends USDAI on-chain at current price, spread across Top 100.</span>
+                                </span>
+                            </h4>
+                            <div class="flex flex-col sm:flex-row gap-sm">
+                                <input id="marketplace_token_buy_amount" type="number" min="0" step="any"
+                                    class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                    placeholder="USDAI amount" />
+                                <button id="marketplace_token_buy_btn" onclick="handleMarketplaceTokenBuy()"
+                                    class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Buy</button>
+                            </div>
+                            <p class="font-code-sm text-[11px] text-outline/60">Min <span id="marketplace_min_buy">0.001</span> · fee ~0.0003 FLO</p>
+                            <p class="font-code-sm text-[10px] text-outline/50 flex items-center gap-1 min-w-0">
+                                <span class="shrink-0">Pay to</span>
+                                <span id="marketplace_usdai_address" class="truncate">loading…</span>
+                                <button onclick="navigator.clipboard.writeText(document.getElementById('marketplace_usdai_address').textContent).then(()=>showToast('Address copied','success'))" class="shrink-0 text-outline hover:text-primary-fixed-dim"><span class="material-symbols-outlined text-[14px]">content_copy</span></button>
+                            </p>
+                            <p id="marketplace_token_buy_result" class="hidden font-code-sm text-xs text-primary-fixed-dim"></p>
+                        </div>
+
+                        <!-- Sell -->
+                        <div class="space-y-sm">
+                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest flex items-center gap-1">Sell (queued)
+                                <span class="group relative inline-flex">
+                                    <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
+                                    <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Queued — paid from liquidity as buys arrive. Higher buy pressure = faster payout.</span>
+                                </span>
+                            </h4>
+                            <div class="flex flex-col sm:flex-row gap-sm">
+                                <input id="marketplace_token_sell_amount" type="number" min="0" step="any"
+                                    class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                    placeholder="Token amount" />
+                                <button onclick="handleMarketplaceTokenSell()"
+                                    class="shrink-0 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10">Queue sell</button>
+                            </div>
+                            <p id="marketplace_token_sell_result" class="hidden font-code-sm text-xs text-outline"></p>
+                        <!-- Live sell-queue transparency metrics -->
+                        <div id="marketplace_sell_queue_stats" class="hidden pt-sm border-t border-white/5 space-y-xs">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Queue
+                                    right now</h4>
+                                <button onclick="loadMarketplaceSellQueueStats()"
+                                    class="font-label-caps text-[9px] text-primary-fixed-dim uppercase tracking-widest hover:underline">Refresh</button>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-xs font-code-sm text-xs">
+                                <div><span class="text-outline block">Waiting</span><span id="sellq_pending"
+                                        class="text-on-surface">–</span></div>
+                                <div><span class="text-outline block">Queued value</span><span id="sellq_value"
+                                        class="text-on-surface">–</span></div>
+                                <div><span class="text-outline block">Oldest request</span><span id="sellq_oldest"
+                                        class="text-on-surface">–</span></div>
+                                <div><span class="text-outline block">Payout rate</span><span id="sellq_rate"
+                                        class="text-primary-fixed-dim">–</span></div>
+                            </div>
+                            <div class="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                <div id="sellq_bar" class="h-full bg-primary-fixed-dim/60 transition-all"
+                                    style="width:0%"></div>
+                            </div>
+                            <p id="sellq_note" class="font-code-sm text-[11px] text-outline"></p>
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- Portfolio -->
+                    <div class="pt-sm border-t border-white/5 space-y-xs">
+                        <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">My Top 100 positions</h4>
+                        <div id="marketplace_portfolio_list" class="space-y-xs"></div>
+                    </div>
+                </div>
+
                 <!-- Properties list: every bundle Property in the selected category -->
                 <div id="marketplace_properties_list" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
                 </div>
@@ -1159,10 +1328,10 @@
                         </div>
                         <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
                             <div class="flex items-center justify-between">
-                                <span class="material-symbols-outlined text-primary-fixed-dim/60">grid_view</span>
-                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Slots</span>
+                                <span class="material-symbols-outlined text-primary-fixed-dim/60">graphic_eq</span>
+                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Consumption</span>
                             </div>
-                            <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_slots">--
+                            <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_consumption">--
                             </div>
                         </div>
                     </div>
@@ -1271,68 +1440,44 @@
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Financing</h3>
                         <div id="marketplace_financing_list" class="space-y-xs"></div>
-                        <div class="flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
+                        <div class="flex flex-col sm:flex-row gap-xs sm:gap-sm items-stretch sm:items-end pt-xs sm:pt-sm border-t border-white/5">
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Amount</label>
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-1">Amount (USDAI)</label>
                                 <input id="marketplace_back_amount" type="number" min="0" step="any"
-                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                     placeholder="0.00" />
                             </div>
-                            <div class="w-24">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Rev %</label>
+                            <div class="w-full sm:w-24">
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-1">Rev %</label>
                                 <input id="marketplace_back_revshare" type="number" min="0" max="100" step="any"
-                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
                             </div>
                             <button onclick="handleMarketplaceBackProperty()"
-                                class="shrink-0 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Back this property</button>
+                                class="w-full sm:w-auto shrink-0 mt-xs sm:mt-0 px-lg py-2.5 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Back this property</button>
                         </div>
                     </div>
 
                     <!-- Interest bar -->
-                    <div class="glass-panel rounded-xl p-md flex items-center justify-between gap-md">
-                        <p class="font-code-sm text-code-sm text-outline hidden sm:block">Signal your intent — this
-                            feeds the scarcity score</p>
+                    <div class="glass-panel rounded-xl p-md flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
+                        <p class="font-code-sm text-xs text-outline/70 flex items-center gap-1">Interest
+                            <span class="group relative inline-flex">
+                                <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
+                                <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Feeds scarcity score. No commitment.</span>
+                            </span>
+                        </p>
                         <div class="flex items-center gap-sm w-full sm:w-auto">
                             <button onclick="handleMarketplaceInterest('want_to_buy')"
                                 title="I want to buy"
                                 class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 text-primary-fixed-dim font-label-caps text-[10px] tracking-widest uppercase hover:bg-primary-fixed-dim/20 active:scale-95 transition-all">
                                 <span class="material-symbols-outlined text-base">add_shopping_cart</span>
-                                <span class="hidden sm:inline">Want to buy</span>
+                                <span>Buy</span>
                             </button>
                             <button onclick="handleMarketplaceInterest('want_to_sell')"
                                 title="I want to sell"
                                 class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10 active:scale-95 transition-all">
                                 <span class="material-symbols-outlined text-base">sell</span>
-                                <span class="hidden sm:inline">Want to sell</span>
+                                <span>Sell</span>
                             </button>
-                        </div>
-                    </div>
-
-                    <!-- Buy panel: appears once a slot is picked, asks for the payment txid -->
-                    <div id="marketplace_buy_panel" class="hidden glass-panel rounded-xl p-md space-y-sm border border-primary-fixed-dim/30">
-                        <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest">Complete purchase</h3>
-                        <p class="font-code-sm text-xs text-outline">Send <span id="marketplace_buy_amount" class="text-on-surface"></span>
-                            FLO to <span id="marketplace_buy_address" class="text-on-surface break-all"></span>, wait for
-                            1 confirmation, then paste the transaction ID below.</p>
-                        <div class="flex flex-col sm:flex-row gap-sm">
-                            <input id="marketplace_buy_txid" type="text"
-                                class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
-                                placeholder="Transaction ID" />
-                            <button onclick="handleMarketplaceConfirmBuy()"
-                                class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Confirm</button>
-                            <button onclick="hideMarketplaceBuyPanel()"
-                                class="shrink-0 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Cancel</button>
-                        </div>
-                    </div>
-
-                    <!-- Slots grid -->
-                    <div>
-                        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs mb-lg">
-                            <span class="material-symbols-outlined text-primary-fixed-dim">grid_view</span>
-                            Slots
-                        </h2>
-                        <div id="marketplace_slots_grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-gutter">
-                            <div class="col-span-full text-center text-outline py-8 font-code-sm">Loading slots...</div>
                         </div>
                     </div>
                 </div>
@@ -1349,27 +1494,31 @@
                     <p class="font-code-sm text-code-sm text-outline mt-2">Loading marketplace...</p>
                 </div>
 
-                <!-- Financing panel (task board + invest-in-a-track, shown when the
-                     Financing tab is selected instead of Properties) -->
+                <!-- Financing panel (invest-in-a-track) -->
                 <div id="marketplace_financing_panel" class="hidden space-y-gutter">
-
-
-                    <!-- Invest in an existing track -->
-                    <div class="glass-panel rounded-xl p-md md:p-lg space-y-md">
-                        <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
-                            <span class="material-symbols-outlined text-primary-fixed-dim">savings</span>
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-1">
+                            <span class="material-symbols-outlined text-base">savings</span>
                             Invest in a track
+                            <span class="group relative inline-flex">
+                                <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
+                                <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Paid in USDAI — on-chain via your key. Confirm once per investment.</span>
+                            </span>
                         </h2>
                         <div class="grid grid-cols-1 sm:grid-cols-4 gap-sm items-end">
-                            <div class="sm:col-span-2">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Track
-                                    ID</label>
-                                <input id="financing_invest_track_id" type="text"
+                            <div class="sm:col-span-2 relative">
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Track</label>
+                                <input id="financing_invest_track_search" type="text" autocomplete="off"
                                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
-                                    placeholder="Track ID" />
+                                    placeholder="Search your tracks…" />
+                                <!-- The actual value sent to the backend -->
+                                <input id="financing_invest_track_id" type="hidden" />
+                                <div id="financing_invest_track_options"
+                                    class="hidden absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-[#161616] border border-white/10 rounded-xl shadow-2xl"></div>
                             </div>
                             <div>
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Amount</label>
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Amount
+                                    (USDAI)</label>
                                 <input id="financing_invest_amount" type="number" min="0" step="any"
                                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
                                     placeholder="0.00" />
@@ -1388,29 +1537,27 @@
                             Invest
                         </button>
                     </div>
+                </div>
 
-                    <!-- Task board -->
-                    <div class="space-y-md">
-                        <div
-                            class="flex flex-col sm:flex-row sm:items-center items-start justify-between gap-2 sm:gap-0">
-                            <div>
-                                <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
-                                    <span class="material-symbols-outlined text-primary-fixed-dim">handyman</span>
-                                    Task board
-                                </h2>
-                                <p class="font-code-sm text-code-sm text-outline mt-1">Ask creators to make something -
-                                    lyrics, music, vocals, marketing - and they claim it and deliver a track</p>
-                            </div>
+                <!-- Taskboard panel (separate tab) -->
+                <div id="marketplace_taskboard_panel" class="hidden space-y-gutter">
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">handyman</span>
+                                Task board
+                            </h2>
                             <button id="financing_post_task_btn" onclick="toggleFinancingPostTaskForm()"
                                 title="Post a task"
-                                class="hidden shrink-0 flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10 active:scale-95 transition-all">
+                                class="hidden shrink-0 flex items-center justify-center gap-xs px-sm py-xs rounded bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10 active:scale-95 transition-all">
                                 <span class="material-symbols-outlined text-base">add</span>
-                                <span class="hidden sm:inline">Post a task</span>
+                                Post a task
                             </button>
                         </div>
+                        <p class="font-code-sm text-[11px] text-outline/60">Lyrics · Music · Vocals · Marketing — request → claim → deliver</p>
 
                         <!-- Post-a-task form (hidden by default) -->
-                        <div id="financing_post_task_form" class="hidden glass-panel rounded-xl p-md space-y-sm">
+                        <div id="financing_post_task_form" class="hidden space-y-sm pt-sm border-t border-white/5">
                             <div>
                                 <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Brief</label>
                                 <div id="financing_task_brief_editor" class="quill-dark rounded-xl overflow-hidden border border-white/10"></div>
@@ -1444,8 +1591,8 @@
                             </button>
                         </div>
 
-                        <!-- Kanban: Open / Claimed / Completed -->
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+                        <!-- Kanban: Open / Claimed / Completed — stacks on mobile, 3 cols from md -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-sm md:gap-md lg:gap-gutter pt-sm border-t border-white/5">
                             <div>
                                 <h3
                                     class="font-label-caps text-[10px] text-outline uppercase tracking-widest mb-sm flex items-center gap-xs">

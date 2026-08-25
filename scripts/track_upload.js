@@ -399,7 +399,7 @@ async function fetchTrackData() {
     previewCard.classList.add("hidden");
 
     // We use a helpful service to grab the page contents smoothly.
-    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(targetUrl);
+    const proxyUrl = API_BASE_URL + "/api/suno-page-proxy?url=" + encodeURIComponent(targetUrl);
     const response = await fetch(proxyUrl);
     if (!response.ok) throw new Error("Failed to fetch the page via proxy");
 
@@ -526,9 +526,12 @@ async function loadUploadCategories() {
       return;
     }
 
-    select.innerHTML = data.categories
-      .map((c) => `<option value="${c.slug}">${c.name}</option>`)
-      .join("");
+    
+    select.innerHTML =
+      `<option value="" disabled selected>Choose a category…</option>` +
+      data.categories
+        .map((c) => `<option value="${c.slug}">${c.name}</option>`)
+        .join("");
   } catch (err) {
     console.error("Failed to load categories:", err);
     select.innerHTML = `<option value="">Failed to load categories</option>`;
@@ -567,6 +570,15 @@ async function registerTrackComponents(trackId, categorySlug, trackData) {
 async function publishTrack() {
   if (!currentUploadTrackData) return;
 
+  // A category must be chosen explicitly 
+  const categorySelect = document.getElementById("upload_category_select");
+  const categorySlug = categorySelect?.value;
+  if (!categorySlug) {
+    showToast("Choose a category before publishing.", "warning");
+    categorySelect?.focus();
+    return;
+  }
+
   // Don't let the same track get added twice.
   if (
     Array.isArray(TRACKS) &&
@@ -600,13 +612,8 @@ async function publishTrack() {
     // Save the track online safely.
     await floCloudAPI.sendApplicationData(trackData, "MusicLibrary_Track");
 
-    // List this track in the marketplace if a category is chosen.
-    const categorySlug = document.getElementById("upload_category_select")?.value;
-    if (categorySlug) {
-      await registerTrackComponents(trackData.id, categorySlug, currentUploadTrackData);
-    } else {
-      console.warn("No category selected - track will not be registered as a marketplace component.");
-    }
+    // List this track in the marketplace under the chosen category.
+    await registerTrackComponents(trackData.id, categorySlug, currentUploadTrackData);
 
     // Update what we see here right away so it feels instant.
     TRACKS.unshift({
@@ -630,6 +637,15 @@ async function publishTrack() {
       .getElementById("extracted_lyrics_section")
       ?.classList.add("hidden");
     document.getElementById("manual_lyrics_input").value = "";
+    // Back to the placeholder so the next upload needs a fresh category pick.
+    if (categorySelect) {
+      const placeholder = categorySelect.querySelector('option[value=""]');
+      if (placeholder) {
+        categorySelect.value = "";
+      } else {
+        loadUploadCategories();
+      }
+    }
     currentUploadTrackData = null;
 
     // Get the latest tracks if we can, then move along.

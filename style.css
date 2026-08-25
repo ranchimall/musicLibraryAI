@@ -295,3 +295,64 @@ keys-generator .kg-footer {
   color: #22d3ee;
   text-decoration: underline;
 }
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Flowallet-style transaction result — adapted from flowallet/css/main.css:991 */
+#marketplace_tx_result {
+  display: grid;
+  gap: 1.5rem;
+  min-height: max(40vh, 24rem);
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+  align-content: center;
+}
+#marketplace_tx_result:empty {
+  display: none;
+}
+#marketplace_tx_result h3 {
+  text-align: center;
+  width: 100%;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #e5e2e1;
+}
+#marketplace_tx_result > .icon {
+  justify-self: center;
+  height: 4rem;
+  width: 4rem;
+  border-radius: 5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: marketplace-popup 1s;
+}
+#marketplace_tx_result > .icon--success {
+  fill: #0a0a0a;
+  background-color: #0bbe56;
+  padding: 1rem;
+}
+#marketplace_tx_result > .icon--failed {
+  background-color: rgba(255, 255, 255, 0.06);
+  fill: #ef4444;
+  padding: 1rem;
+}
+#marketplace_tx_result #marketplace_tx_link {
+  justify-self: center;
+}
+@keyframes marketplace-popup {
+  0% { opacity: 0; transform: scale(0.2) translateY(600%); }
+  10% { transform: scale(0.2) translateY(5rem); opacity: 1; }
+  40% { transform: scale(0.2) translateY(0); }
+  80% { transform: scale(1.1) translateY(0); }
+  100% { transform: scale(1) translateY(0); }
+}
