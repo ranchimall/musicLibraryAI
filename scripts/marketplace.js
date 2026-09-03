@@ -81,6 +81,9 @@ async function checkAndApplyAdminVisibility() {
 
   const postTaskBtn = document.getElementById("financing_post_task_btn");
   if (postTaskBtn) postTaskBtn.classList.toggle("hidden", !isCurrentUserAdmin);
+
+  const usageBtn = document.getElementById("marketplace_show_usage_btn");
+  if (usageBtn) usageBtn.classList.toggle("hidden", !isCurrentUserAdmin);
 }
 
 function setMarketplaceLoading(isLoading) {
@@ -429,6 +432,40 @@ function renderMarketplacePropertyDetail() {
         .join("");
     }
   }
+
+  // Show usage event add button only for admins
+  const usageBtn = document.getElementById("marketplace_show_usage_btn");
+  if (usageBtn) {
+    usageBtn.classList.toggle("hidden", !isCurrentUserAdmin);
+  }
+
+  const usageForm = document.getElementById("marketplace_add_usage_form");
+  if (usageForm) usageForm.classList.add("hidden");
+
+  const usageList = document.getElementById("marketplace_usage_list");
+  if (usageList) {
+    const usageEvents =
+      marketplaceState.property?.usageEvents ||
+      marketplaceState.property?.usage_events ||
+      [];
+    if (!usageEvents.length) {
+      usageList.innerHTML = `<div class="font-code-sm text-xs text-outline">No usage events logged yet.</div>`;
+    } else {
+      usageList.innerHTML = usageEvents
+        .map((ev) => {
+          const type = escapeHtml(ev.usage_type || ev.usageType || "event");
+          const desc =
+            ev.value_description || ev.valueDescription
+              ? ` — ${escapeHtml(ev.value_description || ev.valueDescription)}`
+              : "";
+          return `
+            <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+              <span><span class="text-primary-fixed-dim uppercase text-[10px] px-1.5 py-0.5 rounded bg-primary-fixed-dim/10">${type}</span>${desc}</span>
+            </div>`;
+        })
+        .join("");
+    }
+  }
 }
 
 function formatMarketplaceFinanceComponentType(componentType) {
@@ -764,6 +801,47 @@ async function handleMarketplaceDeleteFinanceComponent(
   } catch (err) {
     console.error("Failed to delete finance component:", err);
     showToast(err.message || "Failed to delete finance component.", "error");
+  }
+}
+
+// --- Usage events (admin) ---------------------------------------------
+
+function toggleMarketplaceUsageForm() {
+  document
+    .getElementById("marketplace_add_usage_form")
+    ?.classList.toggle("hidden");
+}
+
+async function handleMarketplaceLogUsage() {
+  const type = document.getElementById("marketplace_usage_type")?.value;
+  const desc = document.getElementById("marketplace_usage_desc")?.value?.trim();
+
+  if (!type) {
+    showToast("Select a usage type.", "warning");
+    return;
+  }
+
+  if (!marketplaceState.property?.property?.id) {
+    showToast("Open a property first.", "warning");
+    return;
+  }
+
+  try {
+    await marketplaceLogUsageEvent(
+      marketplaceState.property.property.id,
+      type,
+      { valueDescription: desc || undefined },
+    );
+    showToast("Usage event logged", "success");
+    const descInput = document.getElementById("marketplace_usage_desc");
+    if (descInput) descInput.value = "";
+    document
+      .getElementById("marketplace_add_usage_form")
+      ?.classList.add("hidden");
+    await showMarketplacePropertyDetail(marketplaceState.property.property.id);
+  } catch (err) {
+    console.error("Failed to log usage event:", err);
+    showToast(err.message || "Failed to log usage event.", "error");
   }
 }
 

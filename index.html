@@ -1492,6 +1492,36 @@
                         </div>
                     </div>
 
+                    <!-- Usage Events -->
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Usage Events</h3>
+                            <button id="marketplace_show_usage_btn" onclick="toggleMarketplaceUsageForm()"
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Add</button>
+                        </div>
+                        <div id="marketplace_usage_list" class="space-y-xs">
+                            <div class="font-code-sm text-xs text-outline">No usage events logged yet.</div>
+                        </div>
+                        <div id="marketplace_add_usage_form" class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
+                            <div class="flex-1">
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Type</label>
+                                <select id="marketplace_usage_type" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white" style="color-scheme: dark;">
+                                    <option value="embed">Embed</option>
+                                    <option value="external_play">External Play</option>
+                                    <option value="licensed_media">Licensed Media</option>
+                                    <option value="product_integration">Product Integration</option>
+                                    <option value="rights_lease_as_payment">Rights Lease</option>
+                                    <option value="public_infrastructure">Public Infrastructure</option>
+                                </select>
+                            </div>
+                            <div class="flex-1">
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Description</label>
+                                <input id="marketplace_usage_desc" type="text" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" placeholder="e.g., Used in TV ad" />
+                            </div>
+                            <button onclick="handleMarketplaceLogUsage()" class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">Log</button>
+                        </div>
+                    </div>
+
                     <!-- Interest bar -->
                     <div class="glass-panel rounded-xl p-md flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
                         <p class="font-code-sm text-xs text-outline/70 flex items-center gap-1">Interest
