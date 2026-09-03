@@ -28,7 +28,13 @@ function buildHashcontent(fields, source) {
 // auth (optional): { privKey, floId } - signs with an explicitly provided
 // key/identity instead of the logged-in session's. Used by the Main Token
 // buy flow where the paying wallet can differ from the login identity.
-async function signedMarketplaceRequest(path, urlParams, body, fields, auth = {}) {
+async function signedMarketplaceRequest(
+  path,
+  urlParams,
+  body,
+  fields,
+  auth = {},
+) {
   const time = Date.now();
   const privKey = auth.privKey || (await getSigningPrivateKey());
   const pubKey = floCrypto.getPubKeyHex(privKey);
@@ -47,16 +53,44 @@ async function signedMarketplaceRequest(path, urlParams, body, fields, auth = {}
 
   const data = await response.json();
   if (!response.ok || !data.success) {
-    throw new Error(data.error || `Request to ${path} failed (${response.status})`);
+    throw new Error(
+      data.error || `Request to ${path} failed (${response.status})`,
+    );
   }
   return data;
+}
+
+async function marketplaceRecordPlatformPlay(trackId) {
+  return signedMarketplaceRequest(
+    `/api/platform-plays`,
+    {},
+    {
+      floId: floGlobals.myFloID,
+      trackId,
+    },
+    ["trackId", "floId", "time"],
+  );
+}
+
+async function marketplaceToggleTrackLike(trackId) {
+  return signedMarketplaceRequest(
+    `/api/likes`,
+    {},
+    {
+      floId: floGlobals.myFloID,
+      trackId,
+    },
+    ["trackId", "floId", "time"],
+  );
 }
 
 async function marketplaceGetRequest(path) {
   const response = await fetch(`${API_BASE_URL}${path}`);
   const data = await response.json();
   if (!response.ok || !data.success) {
-    throw new Error(data.error || `Request to ${path} failed (${response.status})`);
+    throw new Error(
+      data.error || `Request to ${path} failed (${response.status})`,
+    );
   }
   return data;
 }
@@ -65,7 +99,9 @@ async function marketplaceGetRequest(path) {
 
 async function marketplaceGetCategoryProperties(categorySlug, top100Only) {
   const qs = top100Only ? "?top100=true" : "";
-  const data = await marketplaceGetRequest(`/api/categories/${categorySlug}/properties${qs}`);
+  const data = await marketplaceGetRequest(
+    `/api/categories/${categorySlug}/properties${qs}`,
+  );
   return data.properties;
 }
 
@@ -136,6 +172,56 @@ async function marketplaceRemoveTask(propertyId, taskId) {
   );
 }
 
+// Admin-only on the backend.
+async function marketplaceCreateFinanceComponent(
+  propertyId,
+  componentType,
+  title,
+  description,
+  amount,
+  currency,
+  terms,
+  royaltySplits,
+) {
+  return signedMarketplaceRequest(
+    `/api/properties/${propertyId}/finance-components`,
+    { propertyId },
+    {
+      adminFloId: floGlobals.myFloID,
+      componentType,
+      title,
+      description,
+      amount,
+      currency,
+      terms,
+      royaltySplits,
+    },
+    ["propertyId", "adminFloId", "componentType", "title", "time"],
+  );
+}
+
+// Admin-only on the backend.
+async function marketplaceDeleteFinanceComponent(propertyId, componentId) {
+  return signedMarketplaceRequest(
+    `/api/properties/${propertyId}/finance-components/${componentId}`,
+    { propertyId, componentId },
+    { adminFloId: floGlobals.myFloID },
+    ["propertyId", "componentId", "adminFloId", "time"],
+  );
+}
+
+async function marketplaceGetFinanceComponents(propertyId) {
+  return marketplaceGetRequest(
+    `/api/properties/${propertyId}/finance-components`,
+  );
+}
+
+async function marketplaceGetFinanceAllocations(propertyId) {
+  return marketplaceGetRequest(
+    `/api/properties/${propertyId}/finance-allocations`,
+  );
+}
+
 // Fetches all tasks so admins can pick one to attach to a property.
 async function marketplaceGetAllTasks() {
   const data = await marketplaceGetRequest(`/api/tasks`);
@@ -167,20 +253,6 @@ async function marketplaceRemovePerson(propertyId, personFloId, role) {
     { propertyId, personFloId },
     { adminFloId: floGlobals.myFloID, role },
     ["propertyId", "personFloId", "adminFloId", "time"],
-  );
-}
-
-// Anyone can back a property financially. Financing moves real USDAI -
-// usdaiTxid is an on-chain payment sent to the USDAI payment address.
-// auth: { privKey, floId } of the paying wallet when it differs from the
-// session identity.
-async function marketplaceBackProperty(propertyId, amount, revenueSharePct, usdaiTxid, auth = {}) {
-  return signedMarketplaceRequest(
-    `/api/properties/${propertyId}/financing`,
-    { propertyId },
-    { financierFloId: auth.floId ?? floGlobals.myFloID, amount, revenueSharePct, usdaiTxid },
-    ["propertyId", "financierFloId", "amount", "revenueSharePct", "usdaiTxid", "time"],
-    auth,
   );
 }
 
@@ -257,7 +329,7 @@ async function marketplaceGetPortfolio(floId) {
   return marketplaceGetRequest(`/api/main-token/portfolio/${floId}`);
 }
 
-// --- USDAI on-chain payments (shared by token buys and financing) -------
+// --- USDAI on-chain payments for Main Token purchases -------
 
 // FLO dust attached to carry the USDAI token transfer on-chain.
 const USDAI_TX_FEE = 0.0003;
@@ -324,47 +396,70 @@ async function updateUsdaiKeyPromptBalance() {
   floEl.textContent = "loading…";
   if (warnEl) warnEl.classList.add("hidden");
 
-   // Try to get USDAI balance — sum history if the fast path is empty
+  // Try to get USDAI balance — sum history if the fast path is empty
   async function sumUsdaiHistory(addr) {
-    const r2 = await fetch(`https://ranchimallflo.ranchimall.net/api/v2/floAddressTransactions/${addr}?token=${encodeURIComponent(USDAI_TOKEN_IDENTIFIER)}`);
+    const r2 = await fetch(
+      `https://ranchimallflo.ranchimall.net/api/v2/floAddressTransactions/${addr}?token=${encodeURIComponent(USDAI_TOKEN_IDENTIFIER)}`,
+    );
     if (!r2.ok) return 0;
     const data = await r2.json();
     const txs = data?.transactions || data || [];
-    const seen = new Set(); let bal = 0;
+    const seen = new Set();
+    let bal = 0;
     for (const tx of txs) {
       const id = tx.txid || tx.hash || tx.txID || tx.transactionTrigger;
-      if (!id || seen.has(id)) continue; seen.add(id);
-      const amt = Number(tx.tokenAmount || 0); if (!amt) continue;
-      if (tx.receiverAddress === addr) bal += amt; else if (tx.senderAddress === addr) bal -= amt;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      const amt = Number(tx.tokenAmount || 0);
+      if (!amt) continue;
+      if (tx.receiverAddress === addr) bal += amt;
+      else if (tx.senderAddress === addr) bal -= amt;
     }
     return bal;
   }
-  const usdaiPromise = (typeof floTokenAPI !== "undefined" && floTokenAPI.getBalance)
-    ? floTokenAPI.getBalance(floId, "usdai").then(async (v) => {
-        if (v != null && Number(v) > 0) return v;
-        return await sumUsdaiHistory(floId);
-      }).catch(async () => await sumUsdaiHistory(floId))
-    : fetch(`https://ranchimallflo.ranchimall.net/api/v2/floAddressInfo/${floId}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then(async (j) => {
-        const direct = j?.floAddressBalances?.usdai?.balance ?? j?.floAddressBalances?.USDAI?.balance;
-        if (direct != null && Number(direct) > 0) return direct;
-        return await sumUsdaiHistory(floId);
-      })
-      .catch(() => null);
+  const usdaiPromise =
+    typeof floTokenAPI !== "undefined" && floTokenAPI.getBalance
+      ? floTokenAPI
+          .getBalance(floId, "usdai")
+          .then(async (v) => {
+            if (v != null && Number(v) > 0) return v;
+            return await sumUsdaiHistory(floId);
+          })
+          .catch(async () => await sumUsdaiHistory(floId))
+      : fetch(
+          `https://ranchimallflo.ranchimall.net/api/v2/floAddressInfo/${floId}`,
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then(async (j) => {
+            const direct =
+              j?.floAddressBalances?.usdai?.balance ??
+              j?.floAddressBalances?.USDAI?.balance;
+            if (direct != null && Number(direct) > 0) return direct;
+            return await sumUsdaiHistory(floId);
+          })
+          .catch(() => null);
 
-  const floPromise = (typeof floBlockchainAPI !== "undefined" && floBlockchainAPI.getBalance)
-    ? floBlockchainAPI.getBalance(floId).catch(() => null)
-    : Promise.resolve(null);
+  const floPromise =
+    typeof floBlockchainAPI !== "undefined" && floBlockchainAPI.getBalance
+      ? floBlockchainAPI.getBalance(floId).catch(() => null)
+      : Promise.resolve(null);
 
   const [usdaiBal, floBal] = await Promise.all([usdaiPromise, floPromise]);
   // If user typed a new key while we were fetching, ignore stale result
   if (input.value.trim() !== privKey) return;
-  usdaiEl.textContent = usdaiBal == null ? "—" : Number(usdaiBal).toFixed(8).replace(/\.?0+$/, "") + " USDAI";
+  usdaiEl.textContent =
+    usdaiBal == null
+      ? "—"
+      : Number(usdaiBal)
+          .toFixed(8)
+          .replace(/\.?0+$/, "") + " USDAI";
   floEl.textContent = floBal == null ? "—" : Number(floBal).toFixed(8) + " FLO";
   if (warnEl) {
     const floNum = Number(floBal);
-    warnEl.classList.toggle("hidden", !(Number.isFinite(floNum) && floNum < 0.0004));
+    warnEl.classList.toggle(
+      "hidden",
+      !(Number.isFinite(floNum) && floNum < 0.0004),
+    );
   }
 }
 
@@ -412,6 +507,7 @@ async function sendUsdaiFromKey(privKey, usdaiAmount) {
     USDAI_TX_FEE,
     privKey,
     `send ${usdaiAmount} usdai#`,
+    false,
   );
   return { payerFloId, txid };
 }
@@ -423,11 +519,16 @@ async function redeemUsdaiPayment(redeemFn, txid, auth = {}) {
       return await redeemFn(txid, auth);
     } catch (err) {
       const msg = String((err && err.message) || err);
-      const retryable = msg.includes("not confirmed") || msg.includes("Token API returned 404") || msg.includes("not found");
+      const retryable =
+        msg.includes("not confirmed") ||
+        msg.includes("Token API returned 404") ||
+        msg.includes("not found");
       if (!retryable || attempt === PAYMENT_REDEEM_MAX_ATTEMPTS) {
         throw err;
       }
-      await new Promise((resolve) => setTimeout(resolve, PAYMENT_REDEEM_RETRY_MS));
+      await new Promise((resolve) =>
+        setTimeout(resolve, PAYMENT_REDEEM_RETRY_MS),
+      );
     }
   }
 }
@@ -442,19 +543,7 @@ async function marketplaceExpressInterest(propertyId, intent) {
   );
 }
 
-// --- Financing (tasks & direct track investment) --------
-// Unaffected by the Property bundle model - tasks and track investment
-// are independent of which bundle (if any) a track ends up attached to.
-
-async function marketplaceBackTask(taskId, amount, revenueSharePct, usdaiTxid, auth = {}) {
-  return signedMarketplaceRequest(
-    `/api/financing/tasks/${taskId}/back`,
-    { taskId },
-    { financierFloId: auth.floId ?? floGlobals.myFloID, amount, revenueSharePct, usdaiTxid },
-    ["taskId", "financierFloId", "amount", "revenueSharePct", "usdaiTxid", "time"],
-    auth,
-  );
-}
+// --- Financing (tasks only) --------------------------------------------
 
 // Someone steps up to take on a task.
 async function marketplaceClaimTask(taskId) {
@@ -476,16 +565,6 @@ async function marketplaceCompleteTask(taskId, trackId) {
   );
 }
 
-async function marketplaceInvestInTrack(trackId, amount, revenueSharePct, usdaiTxid, auth = {}) {
-  return signedMarketplaceRequest(
-    `/api/financing/tracks/${trackId}/invest`,
-    { trackId },
-    { financierFloId: auth.floId ?? floGlobals.myFloID, amount, revenueSharePct, usdaiTxid },
-    ["trackId", "financierFloId", "amount", "revenueSharePct", "usdaiTxid", "time"],
-    auth,
-  );
-}
-
 // --- Special authorized actions ---------------------------------------------
 
 // Checks if the user is allowed to do special things here.
@@ -499,12 +578,30 @@ async function marketplaceCheckIsAdmin() {
   return data.isAdmin;
 }
 
-async function marketplaceCreateTask(requesterFloId, brief, budget, componentType) {
+async function marketplaceCreateTask(
+  requesterFloId,
+  brief,
+  budget,
+  componentType,
+) {
   return signedMarketplaceRequest(
     `/api/tasks`,
     {},
-    { adminFloId: floGlobals.myFloID, requesterFloId, brief, budget, componentType },
-    ["adminFloId", "requesterFloId", "brief", "budget", "componentType", "time"],
+    {
+      adminFloId: floGlobals.myFloID,
+      requesterFloId,
+      brief,
+      budget,
+      componentType,
+    },
+    [
+      "adminFloId",
+      "requesterFloId",
+      "brief",
+      "budget",
+      "componentType",
+      "time",
+    ],
   );
 }
 
@@ -546,7 +643,12 @@ async function marketplaceRunPipeline() {
 }
 
 // Adds a new part of a track to the system right after it goes live.
-async function marketplaceRegisterComponent(trackId, categorySlug, componentType, metadata) {
+async function marketplaceRegisterComponent(
+  trackId,
+  categorySlug,
+  componentType,
+  metadata,
+) {
   return signedMarketplaceRequest(
     `/api/tracks/${trackId}/components`,
     { trackId },

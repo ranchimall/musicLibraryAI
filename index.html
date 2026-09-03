@@ -483,7 +483,7 @@
         </div>
     </div>
 
-    <!-- USDAI payment key prompt: shown once per money-moving action (token buy, invest in track, back task/property). The key is used for that single on-chain payment and never stored. -->
+    <!-- USDAI payment key prompt: shown only for Main Token purchases (buy with USDAI). -->
     <div id="usdai_key_prompt"
         class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
         <div
@@ -528,15 +528,6 @@
         <div class="w-full max-w-sm bg-surface p-8 rounded-xl border border-white/10 shadow-2xl text-center space-y-4">
             <span class="material-symbols-outlined text-primary-fixed-dim text-3xl animate-spin">progress_activity</span>
             <p id="marketplace_buy_loading_text" class="font-code-sm text-sm text-outline">Sending on-chain…</p>
-        </div>
-    </div>
-
-    <!-- Small loading screen for investing/backing -->
-    <div id="financing_loading"
-        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 hidden backdrop-blur-md p-4">
-        <div class="w-full max-w-sm bg-surface p-8 rounded-xl border border-white/10 shadow-2xl text-center space-y-4">
-            <span class="material-symbols-outlined text-primary-fixed-dim text-3xl animate-spin">progress_activity</span>
-            <p id="financing_loading_text" class="font-code-sm text-sm text-outline">Sending on-chain…</p>
         </div>
     </div>
 
@@ -1095,7 +1086,7 @@
                             class="font-display-lg text-display-lg-mobile md:text-display-lg font-bold tracking-tight text-on-surface">
                             MARKET<span class="text-primary-fixed-dim">PLACE</span>
                         </h1>
-                        <p class="font-code-sm text-code-sm text-outline mt-1">Invest in music creation from start to finish. Hold the Main Token or back creators directly.</p>
+                        <p class="font-code-sm text-code-sm text-outline mt-1">Browse properties, manage the Main Token, and coordinate task-board work.</p>
                     </div>
                 </div>
 
@@ -1122,9 +1113,6 @@
                         <button data-view="token"
                             class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
                             onclick="setMarketplaceView('token')">Token</button>
-                        <button data-view="financing"
-                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
-                            onclick="setMarketplaceView('financing')">Financing</button>
                         <button data-view="taskboard"
                             class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
                             onclick="setMarketplaceView('taskboard')">Taskboard</button>
@@ -1289,7 +1277,7 @@
                 <div id="marketplace_properties_list" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
                 </div>
 
-                <!-- Property detail: components, people, financing, and slots for one bundle -->
+                <!-- Property detail: components, people, finance, and tasks for one bundle -->
                 <div id="marketplace_property_detail" class="hidden space-y-gutter">
 
                     <button onclick="showMarketplacePropertiesList()"
@@ -1435,25 +1423,72 @@
                         </div>
                     </div>
 
-                    <!-- Financing backing this bundle -->
-
                     <div class="glass-panel rounded-xl p-md space-y-sm">
-                        <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Financing</h3>
-                        <div id="marketplace_financing_list" class="space-y-xs"></div>
-                        <div class="flex flex-col sm:flex-row gap-xs sm:gap-sm items-stretch sm:items-end pt-xs sm:pt-sm border-t border-white/5">
-                            <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-1">Amount (USDAI)</label>
-                                <input id="marketplace_back_amount" type="number" min="0" step="any"
-                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
-                                    placeholder="0.00" />
+                        <div class="flex items-center justify-between gap-sm">
+                            <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Finance Components</h3>
+                            <button id="marketplace_show_add_finance_btn" onclick="toggleMarketplaceAddFinanceForm()"
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Add</button>
+                        </div>
+                        <div id="marketplace_finance_components_list" class="space-y-xs"></div>
+                        <div id="marketplace_add_finance_form" class="hidden space-y-sm pt-sm border-t border-white/5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Component type</label>
+                                    <select id="marketplace_finance_component_type" onchange="toggleMarketplaceFinanceComponentFields()"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        style="color-scheme: dark;">
+                                        <option value="budget">Budget</option>
+                                        <option value="royalty_split">Royalty Split</option>
+                                        <option value="financial_plan">Financial Plan</option>
+                                        <option value="financial_task">Financial Task</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Title</label>
+                                    <input id="marketplace_finance_title" type="text"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        placeholder="e.g. Recording budget" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Description</label>
+                                    <textarea id="marketplace_finance_description" rows="3"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        placeholder="Short explanation of what this component covers"></textarea>
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Planned Amount</label>
+                                    <input id="marketplace_finance_amount" type="number" min="0" step="any"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        placeholder="Optional" />
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Currency (display only)</label>
+                                    <input id="marketplace_finance_currency" type="text" value="USDAI"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        placeholder="USDAI" />
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Terms</label>
+                                    <textarea id="marketplace_finance_terms" rows="3"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        placeholder="Optional notes, milestones, or constraints"></textarea>
+                                </div>
                             </div>
-                            <div class="w-full sm:w-24">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-1">Rev %</label>
-                                <input id="marketplace_back_revshare" type="number" min="0" max="100" step="any"
-                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                            <div id="marketplace_royalty_split_wrap" class="hidden space-y-sm pt-sm border-t border-white/5">
+                                <div class="flex items-center justify-between gap-sm">
+                                    <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Royalty splits</h4>
+                                    <button type="button" onclick="addMarketplaceRoyaltySplitRow()"
+                                        class="font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Add row</button>
+                                </div>
+                                <div id="marketplace_royalty_split_rows" class="space-y-sm"></div>
                             </div>
-                            <button onclick="handleMarketplaceBackProperty()"
-                                class="w-full sm:w-auto shrink-0 mt-xs sm:mt-0 px-lg py-2.5 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Back this property</button>
+                            <p class="font-code-sm text-[11px] text-outline/60">Planning data only - does not transfer or invest funds.</p>
+                            <button onclick="handleMarketplaceAddFinanceComponent()"
+                                class="w-full sm:w-auto px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">Create</button>
+                        </div>
+                        <div class="pt-sm border-t border-white/5">
+                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Algorithmic Allocation</h4>
+                            <div id="marketplace_finance_allocations_list" class="space-y-xs"></div>
                         </div>
                     </div>
 
@@ -1470,13 +1505,13 @@
                                 title="I want to buy"
                                 class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 text-primary-fixed-dim font-label-caps text-[10px] tracking-widest uppercase hover:bg-primary-fixed-dim/20 active:scale-95 transition-all">
                                 <span class="material-symbols-outlined text-base">add_shopping_cart</span>
-                                <span>Buy</span>
+                                <span>Buy Interest</span>
                             </button>
                             <button onclick="handleMarketplaceInterest('want_to_sell')"
                                 title="I want to sell"
                                 class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10 active:scale-95 transition-all">
                                 <span class="material-symbols-outlined text-base">sell</span>
-                                <span>Sell</span>
+                                <span>Sell Interest</span>
                             </button>
                         </div>
                     </div>
@@ -1492,51 +1527,6 @@
                 <div id="marketplace_loading_state" class="glass-panel rounded-xl p-xl text-center">
                     <span class="material-symbols-outlined text-outline text-2xl animate-spin">progress_activity</span>
                     <p class="font-code-sm text-code-sm text-outline mt-2">Loading marketplace...</p>
-                </div>
-
-                <!-- Financing panel (invest-in-a-track) -->
-                <div id="marketplace_financing_panel" class="hidden space-y-gutter">
-                    <div class="glass-panel rounded-xl p-md space-y-sm">
-                        <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-1">
-                            <span class="material-symbols-outlined text-base">savings</span>
-                            Invest in a track
-                            <span class="group relative inline-flex">
-                                <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
-                                <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Paid in USDAI — on-chain via your key. Confirm once per investment.</span>
-                            </span>
-                        </h2>
-                        <div class="grid grid-cols-1 sm:grid-cols-4 gap-sm items-end">
-                            <div class="sm:col-span-2 relative">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Track</label>
-                                <input id="financing_invest_track_search" type="text" autocomplete="off"
-                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
-                                    placeholder="Search your tracks…" />
-                                <!-- The actual value sent to the backend -->
-                                <input id="financing_invest_track_id" type="hidden" />
-                                <div id="financing_invest_track_options"
-                                    class="hidden absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-[#161616] border border-white/10 rounded-xl shadow-2xl"></div>
-                            </div>
-                            <div>
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Amount
-                                    (USDAI)</label>
-                                <input id="financing_invest_amount" type="number" min="0" step="any"
-                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
-                                    placeholder="0.00" />
-                            </div>
-                            <div>
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Revenue
-                                    share %</label>
-                                <input id="financing_invest_revshare" type="number" min="0" max="100" step="any"
-                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
-                                    placeholder="Optional" />
-                            </div>
-                        </div>
-                        <button onclick="handleFinancingInvest()"
-                            class="w-full sm:w-auto flex items-center justify-center gap-xs px-lg py-sm rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">
-                            <span class="material-symbols-outlined text-base">savings</span>
-                            Invest
-                        </button>
-                    </div>
                 </div>
 
                 <!-- Taskboard panel (separate tab) -->
@@ -1577,11 +1567,11 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Budget
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Scope
                                         (optional)</label>
                                     <input id="financing_task_budget" type="number" min="0" step="any"
                                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
-                                        placeholder="0.00" />
+                                        placeholder="Est. effort" />
                                 </div>
                             </div>
                             <button onclick="handleFinancingPostTask()"

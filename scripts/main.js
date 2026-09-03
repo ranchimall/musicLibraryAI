@@ -1245,35 +1245,31 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
 
   // Immediately increment platform plays in DB and UI
   if (track && track.id) {
-    fetch(
-      `${API_BASE_URL}/api/platform-plays?id=${encodeURIComponent(track.id)}`,
-      { method: "POST" },
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          // Keep the TRACKS data in sync
-          track.marketPlayCount = data.playCount;
+  marketplaceRecordPlatformPlay(track.id)
+    .then((data) => {
+      if (data.success) {
+        // Keep the TRACKS data in sync
+        track.marketPlayCount = data.playCount;
 
-          // Update visible card counts
-          ["explore", "library", "profile", "dashboard"].forEach((prefix) => {
-            const marketEl = document.getElementById(
-              `marketplays-${prefix}-${track.id}`,
-            );
+        // Update visible card counts
+        ["explore", "library", "profile", "dashboard"].forEach((prefix) => {
+          const marketEl = document.getElementById(
+            `marketplays-${prefix}-${track.id}`,
+          );
 
-            if (marketEl) {
-              marketEl.textContent = data.playCount.toLocaleString();
-              marketEl.setAttribute("data-plays", data.playCount);
-            }
-          });
+          if (marketEl) {
+            marketEl.textContent = data.playCount.toLocaleString();
+            marketEl.setAttribute("data-plays", data.playCount);
+          }
+        });
 
-          // Update dashboard total immediately
-          const uploads = getMyUploads();
-          updateDashboardStats(uploads, null);
-        }
-      })
-      .catch(console.error);
-  }
+        // Update dashboard total immediately
+        const uploads = getMyUploads();
+        updateDashboardStats(uploads, null);
+      }
+    })
+    .catch(console.error);
+}
 
   // Use the track ID directly when available.
   // This works for Suno (.mp3), Flow Music (.m4a), and other formats.
@@ -1420,14 +1416,7 @@ async function fetchTrackLikes(trackId) {
 }
 
 async function toggleTrackLike(trackId) {
-  const res = await fetch(
-    `${API_BASE_URL}/api/likes?id=${encodeURIComponent(trackId)}&user=${encodeURIComponent(floGlobals.myFloID)}`,
-    {
-      method: "POST",
-    },
-  );
-
-  return await res.json();
+  return marketplaceToggleTrackLike(trackId);
 }
 
 function updatePlayerLikes(data) {
