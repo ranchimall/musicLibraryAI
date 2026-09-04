@@ -291,20 +291,6 @@ async function marketplaceGetUsdaiPaymentAddress() {
   return data.address;
 }
 
-// usdaiTxid must be a confirmed on-chain USDAI transfer sent to
-// marketplaceGetUsdaiPaymentAddress(). Mints Main Token at the current
-// price and spreads it across the Top 100.
-// auth: { privKey, floId } of the paying wallet (asked per purchase).
-async function marketplaceBuyMainToken(usdaiTxid, auth = {}) {
-  const floId = auth.floId ?? floGlobals.myFloID;
-  return signedMarketplaceRequest(
-    `/api/main-token/buy`,
-    {},
-    { floId, usdaiTxid },
-    ["floId", "usdaiTxid", "time"],
-    auth,
-  );
-}
 
 // Sells are queued, not instant - the backend fulfills them from the
 // liquidity pool based on the buy/sell pressure ratio. Returns
@@ -331,24 +317,13 @@ async function marketplaceGetPortfolio(floId) {
 
 // --- USDAI on-chain payments for Main Token purchases -------
 
-// FLO dust attached to carry the USDAI token transfer on-chain.
-const USDAI_TX_FEE = 0.0003;
-// How long to keep polling while a payment waits for its first network
-// confirmation (12 tries x 20s = 4 minutes).
-const PAYMENT_REDEEM_MAX_ATTEMPTS = 12;
-const PAYMENT_REDEEM_RETRY_MS = 20000;
-
-// Asks the user for the private key of the wallet that will pay. The key
-// is asked for every money-moving action and never stored - resolved once,
-// then wiped from the DOM.
+// Asks the user for the TXID of the payment they sent externally.
 let usdaiKeyPromptResolve = null;
-function requestUsdaiPrivateKey() {
+function requestUsdaiTransactionId() {
   return new Promise((resolve) => {
     usdaiKeyPromptResolve = resolve;
     const input = document.getElementById("usdai_key_prompt_input");
     input.value = "";
-    const balWrap = document.getElementById("usdai_key_prompt_balance");
-    if (balWrap) balWrap.classList.add("hidden");
     document.getElementById("usdai_key_prompt").classList.remove("hidden");
     input.focus();
   });
@@ -358,8 +333,6 @@ function resolveUsdaiKeyPrompt(submit) {
   const input = document.getElementById("usdai_key_prompt_input");
   const value = input.value.trim();
   input.value = "";
-  const balWrap = document.getElementById("usdai_key_prompt_balance");
-  if (balWrap) balWrap.classList.add("hidden");
   document.getElementById("usdai_key_prompt").classList.add("hidden");
   if (usdaiKeyPromptResolve) {
     usdaiKeyPromptResolve(submit && value ? value : null);
@@ -367,171 +340,29 @@ function resolveUsdaiKeyPrompt(submit) {
   }
 }
 
-// Show the wallet's USDAI and FLO so you know if you can pay
-let usdaiBalanceDebounce = null;
-async function updateUsdaiKeyPromptBalance() {
-  const input = document.getElementById("usdai_key_prompt_input");
-  const wrap = document.getElementById("usdai_key_prompt_balance");
-  const usdaiEl = document.getElementById("usdai_key_prompt_usdai");
-  const floEl = document.getElementById("usdai_key_prompt_flo");
-  const warnEl = document.getElementById("usdai_key_prompt_flo_warn");
-  if (!input || !wrap || !usdaiEl || !floEl) return;
-  const privKey = input.value.trim();
-  if (!privKey) {
-    wrap.classList.add("hidden");
-    return;
-  }
-  let floId;
-  try {
-    floId = floCrypto.getFloID(privKey);
-    if (!floCrypto.validateFloID(floId, true)) throw new Error("invalid");
-  } catch {
-    wrap.classList.add("hidden");
-    return;
-  }
-  const floIdEl = document.getElementById("usdai_key_prompt_floid");
-  if (floIdEl) floIdEl.textContent = floId.slice(0, 8) + "…" + floId.slice(-4);
-  wrap.classList.remove("hidden");
-  usdaiEl.textContent = "loading…";
-  floEl.textContent = "loading…";
-  if (warnEl) warnEl.classList.add("hidden");
-
-  // Try to get USDAI balance — sum history if the fast path is empty
-  async function sumUsdaiHistory(addr) {
-    const r2 = await fetch(
-      `https://ranchimallflo.ranchimall.net/api/v2/floAddressTransactions/${addr}?token=${encodeURIComponent(USDAI_TOKEN_IDENTIFIER)}`,
-    );
-    if (!r2.ok) return 0;
-    const data = await r2.json();
-    const txs = data?.transactions || data || [];
-    const seen = new Set();
-    let bal = 0;
-    for (const tx of txs) {
-      const id = tx.txid || tx.hash || tx.txID || tx.transactionTrigger;
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      const amt = Number(tx.tokenAmount || 0);
-      if (!amt) continue;
-      if (tx.receiverAddress === addr) bal += amt;
-      else if (tx.senderAddress === addr) bal -= amt;
-    }
-    return bal;
-  }
-  const usdaiPromise =
-    typeof floTokenAPI !== "undefined" && floTokenAPI.getBalance
-      ? floTokenAPI
-          .getBalance(floId, "usdai")
-          .then(async (v) => {
-            if (v != null && Number(v) > 0) return v;
-            return await sumUsdaiHistory(floId);
-          })
-          .catch(async () => await sumUsdaiHistory(floId))
-      : fetch(
-          `https://ranchimallflo.ranchimall.net/api/v2/floAddressInfo/${floId}`,
-        )
-          .then((r) => (r.ok ? r.json() : null))
-          .then(async (j) => {
-            const direct =
-              j?.floAddressBalances?.usdai?.balance ??
-              j?.floAddressBalances?.USDAI?.balance;
-            if (direct != null && Number(direct) > 0) return direct;
-            return await sumUsdaiHistory(floId);
-          })
-          .catch(() => null);
-
-  const floPromise =
-    typeof floBlockchainAPI !== "undefined" && floBlockchainAPI.getBalance
-      ? floBlockchainAPI.getBalance(floId).catch(() => null)
-      : Promise.resolve(null);
-
-  const [usdaiBal, floBal] = await Promise.all([usdaiPromise, floPromise]);
-  // If user typed a new key while we were fetching, ignore stale result
-  if (input.value.trim() !== privKey) return;
-  usdaiEl.textContent =
-    usdaiBal == null
-      ? "—"
-      : Number(usdaiBal)
-          .toFixed(8)
-          .replace(/\.?0+$/, "") + " USDAI";
-  floEl.textContent = floBal == null ? "—" : Number(floBal).toFixed(8) + " FLO";
-  if (warnEl) {
-    const floNum = Number(floBal);
-    warnEl.classList.toggle(
-      "hidden",
-      !(Number.isFinite(floNum) && floNum < 0.0004),
-    );
-  }
+// Modify the buy function to remove the auth parameter
+async function marketplaceBuyMainToken(usdaiTxid) {
+  return signedMarketplaceRequest(
+    `/api/main-token/buy`,
+    {},
+    { floId: floGlobals.myFloID, usdaiTxid },
+    ["floId", "usdaiTxid", "time"]
+  );
 }
 
-// Enter confirms, Escape cancels while the prompt is open.
-document
-  .getElementById("usdai_key_prompt_input")
-  .addEventListener("keydown", (e) => {
+// Event listeners for the new modal
+document.getElementById("usdai_key_prompt_input").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       resolveUsdaiKeyPrompt(true);
     }
-  });
+});
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     const overlay = document.getElementById("usdai_key_prompt");
     if (!overlay.classList.contains("hidden")) resolveUsdaiKeyPrompt(false);
   }
 });
-
-// Update balance as you type, but wait a bit so it doesn't check too often
-document
-  .getElementById("usdai_key_prompt_input")
-  .addEventListener("input", () => {
-    clearTimeout(usdaiBalanceDebounce);
-    usdaiBalanceDebounce = setTimeout(updateUsdaiKeyPromptBalance, 400);
-  });
-
-// Sends `usdaiAmount` from the wallet behind privKey to the platform's
-// USDAI payment address. Returns { payerFloId, txid }.
-async function sendUsdaiFromKey(privKey, usdaiAmount) {
-  let payerFloId;
-  try {
-    payerFloId = floCrypto.getFloID(privKey);
-  } catch (err) {
-    throw new Error("Invalid private key.");
-  }
-  if (!floCrypto.validateFloID(payerFloId, true)) {
-    throw new Error("Invalid private key.");
-  }
-
-  const address = await marketplaceGetUsdaiPaymentAddress();
-  const txid = await floBlockchainAPI.sendTx(
-    payerFloId,
-    address,
-    USDAI_TX_FEE,
-    privKey,
-    `send ${usdaiAmount} usdai#`,
-    false,
-  );
-  return { payerFloId, txid };
-}
-
-// Try to redeem the payment, and try again if it's still confirming
-async function redeemUsdaiPayment(redeemFn, txid, auth = {}) {
-  for (let attempt = 1; attempt <= PAYMENT_REDEEM_MAX_ATTEMPTS; attempt++) {
-    try {
-      return await redeemFn(txid, auth);
-    } catch (err) {
-      const msg = String((err && err.message) || err);
-      const retryable =
-        msg.includes("not confirmed") ||
-        msg.includes("Token API returned 404") ||
-        msg.includes("not found");
-      if (!retryable || attempt === PAYMENT_REDEEM_MAX_ATTEMPTS) {
-        throw err;
-      }
-      await new Promise((resolve) =>
-        setTimeout(resolve, PAYMENT_REDEEM_RETRY_MS),
-      );
-    }
-  }
-}
 
 // intent: "want_to_buy" | "want_to_sell"
 async function marketplaceExpressInterest(propertyId, intent) {

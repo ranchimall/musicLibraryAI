@@ -189,6 +189,7 @@
             if (pageId === 'page_upload' && typeof loadUploadCategories === 'function') {
                 loadUploadCategories();
             }
+            localStorage.setItem("currentPage", pageId);
         }
 
         function onLoadStartUp() {
@@ -214,6 +215,10 @@
                 console.log(result)
                 document.getElementById('sign_in_gateway').classList.add('hidden');
                 document.getElementById('main_app_content').classList.remove('hidden');
+                const savedPage = localStorage.getItem("currentPage");
+                if (savedPage && savedPage !== "page_explore") {
+                    routeTo(savedPage);
+                }
                 if (!floCrypto.validateFloID(floDapps.user.id)) {
                     floGlobals.myBtcID = floDapps.user.id
                     const type = coinjs.addressDecode(floGlobals.myBtcID).type
@@ -483,41 +488,30 @@
         </div>
     </div>
 
-    <!-- USDAI payment key prompt: shown only for Main Token purchases (buy with USDAI). -->
-    <div id="usdai_key_prompt"
-        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
-        <div
-            class="w-full max-w-md bg-surface p-6 md:p-8 rounded-xl border border-white/10 shadow-2xl relative mx-4 md:mx-0">
-            <button onclick="resolveUsdaiKeyPrompt(false)"
-                class="absolute top-4 right-4 text-white hover:text-primary-fixed-dim bg-transparent border-none">
+    <!-- USDAI TXID prompt: shown after user sends funds externally. -->
+    <div id="usdai_key_prompt" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
+        <div class="w-full max-w-md bg-surface p-6 md:p-8 rounded-xl border border-white/10 shadow-2xl relative mx-4 md:mx-0">
+            <button onclick="resolveUsdaiKeyPrompt(false)" class="absolute top-4 right-4 text-white hover:text-primary-fixed-dim bg-transparent border-none">
                 <span class="material-symbols-outlined">close</span>
             </button>
-            <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest mb-2">Authorize
-                payment</h3>
-            <p class="font-code-sm text-xs text-outline mb-4">Paste the private key that holds your USDAI. Used once — never saved.</p>
-            <input id="usdai_key_prompt_input" type="password"
-                class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim mb-2"
-                placeholder="Private key" />
-            <div id="usdai_key_prompt_balance" class="hidden mb-4 rounded-lg bg-black/30 border border-white/5 p-3 space-y-1">
+            <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest mb-2">Confirm Payment</h3>
+            <p class="font-code-sm text-xs text-outline mb-4">Open your FLO wallet, send the exact USDAI amount to the address shown below, then paste the Transaction ID.</p>
+            <div id="usdai_key_prompt_address_wrap" class="mb-4 rounded-lg bg-black/30 border border-white/5 p-3 space-y-1.5">
                 <div class="flex items-center justify-between font-code-sm text-[11px]">
-                    <span class="text-outline">Wallet</span>
-                    <span id="usdai_key_prompt_floid" class="text-primary-fixed-dim truncate max-w-[12rem]">—</span>
+                    <span class="text-outline">Send to address</span>
+                    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('usdai_key_prompt_address').textContent.trim()).then(()=>showToast('Address copied','success'))" class="text-outline hover:text-primary-fixed-dim flex items-center gap-1 bg-transparent border-none cursor-pointer p-0 text-[11px]">
+                        <span class="material-symbols-outlined text-[14px]">content_copy</span>
+                        <span>Copy</span>
+                    </button>
                 </div>
-                <div class="flex items-center justify-between font-code-sm text-xs">
-                    <span class="text-outline">USDAI balance</span>
-                    <span id="usdai_key_prompt_usdai" class="text-white font-semibold">—</span>
-                </div>
-                <div class="flex items-center justify-between font-code-sm text-xs">
-                    <span class="text-outline">FLO (for fee)</span>
-                    <span id="usdai_key_prompt_flo" class="text-white">—</span>
-                </div>
-                <p id="usdai_key_prompt_flo_warn" class="hidden font-code-sm text-[11px] text-amber-400">Low FLO — need ~0.0003 for network fee.</p>
+                <div id="usdai_key_prompt_address" class="text-primary-fixed-dim font-code-sm text-xs break-all select-all font-mono leading-relaxed">—</div>
             </div>
+            <input id="usdai_key_prompt_input" type="text" 
+                class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim mb-2"
+                placeholder="Paste TXID here" />
             <div class="flex flex-wrap gap-sm">
-                <button onclick="resolveUsdaiKeyPrompt(true)"
-                    class="flex-1 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Confirm</button>
-                <button onclick="resolveUsdaiKeyPrompt(false)"
-                    class="px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Cancel</button>
+                <button onclick="resolveUsdaiKeyPrompt(true)" class="flex-1 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Verify & Mint</button>
+                <button onclick="resolveUsdaiKeyPrompt(false)" class="px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Cancel</button>
             </div>
         </div>
     </div>

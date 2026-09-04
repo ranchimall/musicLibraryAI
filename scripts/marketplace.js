@@ -22,6 +22,12 @@ let isCurrentUserAdmin = null;
 
 // Starts up the marketplace view when the user navigates here.
 async function renderMarketplace() {
+
+  marketplaceState.view = "properties";
+  document.getElementById("marketplace_token_panel").classList.add("hidden");
+  document.getElementById("marketplace_taskboard_panel").classList.add("hidden");
+  document.getElementById("marketplace_property_detail").classList.add("hidden");
+  document.getElementById("marketplace_loading_state").classList.remove("hidden");
   if (!marketplaceState.categories.length) {
     await loadMarketplaceCategories();
   }
@@ -165,41 +171,35 @@ async function showMarketplaceView() {
   const isToken = view === "token";
   const isTaskboard = view === "taskboard";
 
-  // Category browsing controls only make sense on Properties.
-  const hideChrome = isToken || isTaskboard;
-  const categorySelectWrap = document.getElementById(
-    "marketplace_category_select_wrap",
-  );
-  if (categorySelectWrap)
-    categorySelectWrap.classList.toggle("hidden", hideChrome);
-  const top100Wrap = document.getElementById("marketplace_top100_toggle_wrap");
-  if (top100Wrap) top100Wrap.classList.toggle("hidden", hideChrome);
-  const addPropertyBtn = document.getElementById(
-    "marketplace_add_property_btn",
-  );
-  if (addPropertyBtn) {
-    addPropertyBtn.classList.toggle(
-      "hidden",
-      hideChrome || !isCurrentUserAdmin,
-    );
-  }
-
-  const propertiesList = document.getElementById("marketplace_properties_list");
-  const propertyDetail = document.getElementById("marketplace_property_detail");
-  const emptyState = document.getElementById("marketplace_empty_state");
-  const loadingState = document.getElementById("marketplace_loading_state");
   const tokenPanel = document.getElementById("marketplace_token_panel");
   const taskboardPanel = document.getElementById("marketplace_taskboard_panel");
-
+  const propertyDetail = document.getElementById("marketplace_property_detail");
+  if (tokenPanel) tokenPanel.classList.add("hidden");
   if (taskboardPanel) taskboardPanel.classList.add("hidden");
+  if (propertyDetail) propertyDetail.classList.add("hidden");
+
+  // Category browsing controls only make sense on Properties.
+  const hideChrome = isToken || isTaskboard;
+  const categorySelectWrap = document.getElementById("marketplace_category_select_wrap");
+  if (categorySelectWrap) categorySelectWrap.classList.toggle("hidden", hideChrome);
+  const top100Wrap = document.getElementById("marketplace_top100_toggle_wrap");
+  if (top100Wrap) top100Wrap.classList.toggle("hidden", hideChrome);
+  const addPropertyBtn = document.getElementById("marketplace_add_property_btn");
+  if (addPropertyBtn) {
+    addPropertyBtn.classList.toggle("hidden", hideChrome || !isCurrentUserAdmin);
+  }
+
+  // Get the rest of the elements
+  const propertiesList = document.getElementById("marketplace_properties_list");
+  const emptyState = document.getElementById("marketplace_empty_state");
+  const loadingState = document.getElementById("marketplace_loading_state");
 
   if (isTaskboard) {
     loadingState.classList.add("hidden");
     propertiesList.classList.add("hidden");
-    propertyDetail.classList.add("hidden");
     emptyState.classList.add("hidden");
     tokenPanel.classList.add("hidden");
-    if (taskboardPanel) taskboardPanel.classList.remove("hidden");
+    taskboardPanel.classList.remove("hidden");
     if (typeof ensureTaskBriefEditor === "function") ensureTaskBriefEditor();
     if (typeof loadFinancingTasks === "function") await loadFinancingTasks();
     return;
@@ -208,16 +208,16 @@ async function showMarketplaceView() {
   if (isToken) {
     loadingState.classList.add("hidden");
     propertiesList.classList.add("hidden");
-    propertyDetail.classList.add("hidden");
     emptyState.classList.add("hidden");
-    taskboardPanel?.classList.add("hidden");
+    taskboardPanel.classList.add("hidden");
     tokenPanel.classList.remove("hidden");
     await loadMarketplaceTokenPanel();
     return;
   }
 
+  // Default: Properties view
   tokenPanel.classList.add("hidden");
-  taskboardPanel?.classList.add("hidden");
+  taskboardPanel.classList.add("hidden");
   await showMarketplacePropertiesList();
 }
 
@@ -1400,7 +1400,6 @@ function hideMarketplaceBuyLoading() {
   if (wrap) wrap.classList.add("hidden");
 }
 
-// One-click buy: ask for the paying wallet's key (asked every purchase, never stored), send USDAI on-chain from that wallet, then redeem the txid at /api/main-token/buy. Minting waits for 1 confirmation, so the shared redeem helper retries briefly.
 async function handleMarketplaceTokenBuy() {
   const amountInput = document.getElementById("marketplace_token_buy_amount");
   const buyBtn = document.getElementById("marketplace_token_buy_btn");
@@ -1416,84 +1415,62 @@ async function handleMarketplaceTokenBuy() {
     return;
   }
 
-  const privKey = await requestUsdaiPrivateKey();
-  if (!privKey) return;
+  //  Fetch and display the receiving address
+  const address = await marketplaceGetUsdaiPaymentAddress();
+  const addressEl = document.getElementById("usdai_key_prompt_address");
+  if (addressEl) addressEl.textContent = address;
+
+  // Ask the user to paste the TXID after sending funds externally
+  const txid = await requestUsdaiTransactionId();
+  if (!txid) return;
 
   const origBtnText = buyBtn.textContent;
   buyBtn.disabled = true;
-  buyBtn.innerHTML =
-    '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> Buying…';
-  let lastTxid = null;
+  buyBtn.innerHTML = '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> Verifying…';
+  
   try {
-    showMarketplaceBuyLoading(`Sending ${amount} USDAI on-chain…`);
-    setMarketplaceBuyStatus(`Sending ${amount} USDAI on-chain…`);
-    const { payerFloId, txid } = await sendUsdaiFromKey(privKey, amount);
-    lastTxid = txid;
-
-    showMarketplaceBuyLoading("Waiting for network confirmation…");
-    setMarketplaceBuyStatus("Waiting for network confirmation…");
-    const result = await redeemUsdaiPayment(marketplaceBuyMainToken, txid, {
-      privKey,
-      floId: payerFloId,
-    });
+    // Send the TXID to the backend for verification and minting
+    showMarketplaceBuyLoading("Verifying payment on-chain…");
+    setMarketplaceBuyStatus("Verifying payment…");
+    
+    const result = await marketplaceBuyMainToken(txid);
 
     hideMarketplaceBuyLoading();
     const amt = Number(result.tokenAmount ?? result.usdaiValue ?? amount);
     const price = Number(result.tokenPrice ?? 1);
     const safeAmt = Number.isFinite(amt) ? amt : amount;
     const safePrice = Number.isFinite(price) && price !== 0 ? price : 1;
+    
     let msg = `Bought ${safeAmt.toFixed(6)} Main Token at price ${safePrice.toFixed(6)}.`;
-    if (payerFloId !== floGlobals.myFloID) {
-      msg += ` Tokens were minted to ${truncateFloId(payerFloId)} (the paying wallet).`;
-    }
+    
     setMarketplaceBuyStatus(msg);
     showToast("Main Token purchased.", "success");
     amountInput.value = "";
     await refreshMarketplacePortfolio();
     await loadMarketplaceTokenPanel();
     await loadMarketplaceSellQueueStats();
-    // Show the success message
+    
     showMarketplaceTransactionResult(true, txid, {
       title: "Purchase completed",
       description: msg,
-      extraHtml: `<p class="font-code-sm text-[11px] text-outline">Added to your Top 100 positions — rebalance on next run.</p>`,
+      extraHtml: `<p class="font-code-sm text-[11px] text-outline">Added to your Top 100 positions.</p>`,
     });
   } catch (err) {
     hideMarketplaceBuyLoading();
     console.error("Main Token buy failed:", err);
     const errMsg = String((err && err.message) || err);
     const friendly = (() => {
-      const m = errMsg;
-      if (m.includes("Insufficient FLO"))
-        return "Not enough FLO. Add ~0.0003 FLO and try again.";
-      if (m.includes("Token API returned 404"))
-        return "Payment not found yet. Wait 30s and try again.";
-      if (
-        m.includes("Insufficient USDAI") &&
-        m.includes(`required ${MIN_MAIN_TOKEN_BUY_USDAI}`)
-      )
-        return `Minimum is ${MIN_MAIN_TOKEN_BUY_USDAI} USDAI.`;
-      if (m.includes("Insufficient USDAI") && m.includes("required 0.01"))
-        return "Minimum is 0.01 USDAI.";
-      if (m.includes("Insufficient USDAI"))
-        return "Not enough USDAI in this wallet.";
-      if (m.toLowerCase().includes("not confirmed"))
-        return "Payment still confirming. Try again in 30s.";
-      return m;
+      if (errMsg.includes("Token API returned 404")) return "Payment not found yet. Wait 30s and try again.";
+      if (errMsg.includes("not confirmed")) return "Payment still confirming. Try again in 30s.";
+      if (errMsg.includes("Insufficient USDAI")) return "Not enough USDAI in the transaction.";
+      return errMsg;
     })();
     setMarketplaceBuyStatus(`Purchase incomplete. ${friendly}`);
     showToast("Could not complete purchase.", "error");
-    if (
-      lastTxid ||
-      errMsg.includes("Insufficient") ||
-      errMsg.toLowerCase().includes("usdai") ||
-      errMsg.toLowerCase().includes("flo")
-    ) {
-      showMarketplaceTransactionResult(false, lastTxid, {
-        title: "Failed",
-        description: friendly,
-      });
-    }
+    showMarketplaceTransactionResult(false, txid, {
+      title: "Failed",
+      description: friendly,
+    });
   } finally {
     hideMarketplaceBuyLoading();
     buyBtn.disabled = false;
