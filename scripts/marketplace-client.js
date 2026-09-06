@@ -352,10 +352,10 @@ async function marketplaceBuyMainToken(usdaiTxid) {
 
 // Event listeners for the new modal
 document.getElementById("usdai_key_prompt_input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      resolveUsdaiKeyPrompt(true);
-    }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    resolveUsdaiKeyPrompt(true);
+  }
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
@@ -470,6 +470,15 @@ async function marketplaceRunPipeline() {
     {},
     { adminFloId: floGlobals.myFloID },
     ["adminFloId", "time"],
+  );
+}
+
+async function marketplaceDeleteUsageEvent(propertyId, eventId) {
+  return signedMarketplaceRequest(
+    `/api/properties/${propertyId}/usage-events/${eventId}`,
+    { propertyId, eventId },
+    { adminFloId: floGlobals.myFloID },
+    ["propertyId", "eventId", "adminFloId", "time"]
   );
 }
 

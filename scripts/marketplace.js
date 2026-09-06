@@ -296,7 +296,7 @@ function renderMarketplacePropertiesList() {
             ${rankBadge}
           </div>
           <div class="flex items-center gap-md font-code-sm text-xs text-outline">
-            <span>Price: <span class="text-primary-fixed-dim">${Number(p.current_price).toFixed(2)}</span></span>
+            <span>Price: <span class="text-primary-fixed-dim">${Number(p.current_price).toFixed(2)} USDAI</span></span>
             ${p.in_top_100 ? "<span>Top 100</span>" : ""}
           </div>
         </button>`;
@@ -458,10 +458,16 @@ function renderMarketplacePropertyDetail() {
             ev.value_description || ev.valueDescription
               ? ` — ${escapeHtml(ev.value_description || ev.valueDescription)}`
               : "";
+          // Add delete button for admins
+          const deleteBtn = isCurrentUserAdmin
+            ? `<button onclick="handleMarketplaceDeleteUsageEvent(${ev.id})" title="Delete event" class="text-outline hover:text-error"><span class="material-symbols-outlined text-sm">close</span></button>`
+            : "";
+
           return `
-            <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
-              <span><span class="text-primary-fixed-dim uppercase text-[10px] px-1.5 py-0.5 rounded bg-primary-fixed-dim/10">${type}</span>${desc}</span>
-            </div>`;
+      <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+        <span><span class="text-primary-fixed-dim uppercase text-[10px] px-1.5 py-0.5 rounded bg-primary-fixed-dim/10">${type}</span>${desc}</span>
+        ${deleteBtn}
+      </div>`;
         })
         .join("");
     }
@@ -1188,7 +1194,7 @@ async function loadMarketplaceTokenPanel() {
     marketplaceState.tokenSupply = Number(data.totalSupply);
 
     document.getElementById("marketplace_token_price").textContent =
-      marketplaceState.tokenPrice.toFixed(6);
+      marketplaceState.tokenPrice.toFixed(6) + " USDAI";
     document.getElementById("marketplace_token_supply").textContent =
       marketplaceState.tokenSupply.toLocaleString(undefined, {
         maximumFractionDigits: 6,
@@ -1196,7 +1202,7 @@ async function loadMarketplaceTokenPanel() {
     document.getElementById("marketplace_token_valuation").textContent =
       marketplaceState.systemValuation.toLocaleString(undefined, {
         maximumFractionDigits: 2,
-      });
+      }) + " USDAI";
   } catch (err) {
     console.error("Failed to load token price:", err);
   }
@@ -1245,15 +1251,14 @@ async function loadMarketplaceSellQueueStats() {
       document.getElementById("sellq_pending").textContent = String(
         stats.pendingCount,
       );
-      document.getElementById("sellq_value").textContent =
-        "$" + Number(stats.outstandingUsdai).toFixed(2);
+      document.getElementById("sellq_value").textContent = Number(stats.outstandingUsdai).toFixed(2) + " USDAI";
       document.getElementById("sellq_oldest").textContent = formatAgeSince(
         stats.oldestRequestedAt,
       );
       document.getElementById("sellq_rate").textContent = "0%";
       document.getElementById("sellq_bar").style.width = "0%";
       document.getElementById("sellq_note").textContent =
-        "Payouts start once platform liquidity reaches $10,000.";
+        "Payouts start once platform liquidity reaches 10,000 USDAI.";
       return;
     }
 
@@ -1264,7 +1269,7 @@ async function loadMarketplaceSellQueueStats() {
       stats.pendingCount,
     );
     document.getElementById("sellq_value").textContent =
-      `$${Number(stats.outstandingUsdai).toFixed(2)}`;
+      `${Number(stats.outstandingUsdai).toFixed(2)} USDAI`;
     document.getElementById("sellq_oldest").textContent = formatAgeSince(
       stats.oldestRequestedAt,
     );
@@ -1427,12 +1432,12 @@ async function handleMarketplaceTokenBuy() {
   const origBtnText = buyBtn.textContent;
   buyBtn.disabled = true;
   buyBtn.innerHTML = '<span class="material-symbols-outlined text-base animate-spin">progress_activity</span> Verifying…';
-  
+
   try {
     // Send the TXID to the backend for verification and minting
     showMarketplaceBuyLoading("Verifying payment on-chain…");
     setMarketplaceBuyStatus("Verifying payment…");
-    
+
     const result = await marketplaceBuyMainToken(txid);
 
     hideMarketplaceBuyLoading();
@@ -1440,16 +1445,16 @@ async function handleMarketplaceTokenBuy() {
     const price = Number(result.tokenPrice ?? 1);
     const safeAmt = Number.isFinite(amt) ? amt : amount;
     const safePrice = Number.isFinite(price) && price !== 0 ? price : 1;
-    
+
     let msg = `Bought ${safeAmt.toFixed(6)} Main Token at price ${safePrice.toFixed(6)}.`;
-    
+
     setMarketplaceBuyStatus(msg);
     showToast("Main Token purchased.", "success");
     amountInput.value = "";
     await refreshMarketplacePortfolio();
     await loadMarketplaceTokenPanel();
     await loadMarketplaceSellQueueStats();
-    
+
     showMarketplaceTransactionResult(true, txid, {
       title: "Purchase completed",
       description: msg,
@@ -1519,5 +1524,18 @@ async function handleMarketplaceInterest(intent) {
   } catch (err) {
     console.error("Failed to record interest:", err);
     showToast(err.message || "Failed to record interest.", "error");
+  }
+}
+
+async function handleMarketplaceDeleteUsageEvent(eventId) {
+  if (!confirm("Delete this usage event?")) return;
+
+  try {
+    await marketplaceDeleteUsageEvent(marketplaceState.property.property.id, eventId);
+    showToast("Usage event deleted.", "success");
+    await showMarketplacePropertyDetail(marketplaceState.property.property.id);
+  } catch (err) {
+    console.error("Failed to delete usage event:", err);
+    showToast(err.message || "Failed to delete usage event.", "error");
   }
 }
