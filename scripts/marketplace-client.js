@@ -501,3 +501,25 @@ async function marketplaceRegisterComponent(
     ["trackId", "contributorFloId", "categorySlug", "componentType", "time"],
   );
 }
+
+async function marketplaceGetSubmissions(taskId) {
+  return marketplaceGetRequest(`/api/tasks/${taskId}/submissions`);
+}
+
+async function marketplaceSubmitTask(taskId, deliveryLink) {
+  return signedMarketplaceRequest(
+    `/api/tasks/${taskId}/submit`,
+    { taskId },
+    { creatorFloId: floGlobals.myFloID, deliveryLink },
+    ["taskId", "creatorFloId", "deliveryLink", "time"]
+  );
+}
+
+async function marketplaceSelectWinner(taskId, submissionId) {
+  return signedMarketplaceRequest(
+    `/api/tasks/${taskId}/select-winner`,
+    { taskId },
+    { adminFloId: floGlobals.myFloID, submissionId },
+    ["taskId", "submissionId", "adminFloId", "time"]
+  );
+}
