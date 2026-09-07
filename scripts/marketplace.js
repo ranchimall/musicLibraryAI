@@ -170,13 +170,16 @@ async function showMarketplaceView() {
   const view = marketplaceState.view;
   const isToken = view === "token";
   const isTaskboard = view === "taskboard";
+  const isOverview = view === "overview";
 
   const tokenPanel = document.getElementById("marketplace_token_panel");
   const taskboardPanel = document.getElementById("marketplace_taskboard_panel");
   const propertyDetail = document.getElementById("marketplace_property_detail");
+  const overviewPanel = document.getElementById("marketplace_overview_panel");
   if (tokenPanel) tokenPanel.classList.add("hidden");
   if (taskboardPanel) taskboardPanel.classList.add("hidden");
   if (propertyDetail) propertyDetail.classList.add("hidden");
+  if (overviewPanel) overviewPanel.classList.add("hidden");
 
   // Category browsing controls only make sense on Properties.
   const hideChrome = isToken || isTaskboard;
@@ -193,6 +196,17 @@ async function showMarketplaceView() {
   const propertiesList = document.getElementById("marketplace_properties_list");
   const emptyState = document.getElementById("marketplace_empty_state");
   const loadingState = document.getElementById("marketplace_loading_state");
+
+  if (isOverview) {
+    loadingState.classList.add("hidden");
+    propertiesList.classList.add("hidden");
+    emptyState.classList.add("hidden");
+    taskboardPanel.classList.add("hidden");
+    tokenPanel.classList.add("hidden");
+    overviewPanel.classList.remove("hidden");
+    await loadMarketplaceOverview();
+    return;
+  }
 
   if (isTaskboard) {
     loadingState.classList.add("hidden");
@@ -1537,5 +1551,77 @@ async function handleMarketplaceDeleteUsageEvent(eventId) {
   } catch (err) {
     console.error("Failed to delete usage event:", err);
     showToast(err.message || "Failed to delete usage event.", "error");
+  }
+}
+
+async function loadMarketplaceOverview() {
+  try {
+    const data = await marketplaceGetOverview();
+
+    // Update Counts
+    document.getElementById("overview_people_count").textContent = data.people.length;
+    document.getElementById("overview_finance_count").textContent = data.finance.length;
+    document.getElementById("overview_marketing_count").textContent = data.marketing.length;
+
+    // Render People
+    const peopleList = document.getElementById("overview_people_list");
+    if (!data.people.length) {
+      peopleList.innerHTML = `<div class="font-code-sm text-xs text-outline">No people registered yet.</div>`;
+    } else {
+      peopleList.innerHTML = data.people.map((person) => {
+        const propertyInfo = person.property_id
+          ? ` <span class="ml-2 px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-primary-fixed-dim">${escapeHtml(person.property_name || 'Property #' + person.property_id)}${person.role ? ' · ' + escapeHtml(person.role) : ''}</span>`
+          : "";
+        return `
+          <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+            <div class="min-w-0">
+              <span class="font-code-sm text-xs text-on-surface">${escapeHtml(person.name || truncateFloId(person.flo_id))}</span>
+              <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(person.work_profile || '')}</span>
+              ${propertyInfo}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // Render Finance
+    const financeList = document.getElementById("overview_finance_list");
+    if (!data.finance.length) {
+      financeList.innerHTML = `<div class="font-code-sm text-xs text-outline">No finance components yet.</div>`;
+    } else {
+      financeList.innerHTML = data.finance.map((fin) => {
+        const amount = fin.amount ? `${Number(fin.amount).toFixed(2)} ${escapeHtml(fin.currency || 'USDAI')}` : 'Unpriced';
+        return `
+          <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+            <div class="min-w-0">
+              <span class="font-code-sm text-xs text-on-surface">${escapeHtml(fin.title || 'Untitled')}</span>
+              <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(fin.property_name || 'Unassigned')}</span>
+            </div>
+            <span class="font-code-sm text-[11px] text-primary-fixed-dim">${amount}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    // Render Marketing
+    const marketingList = document.getElementById("overview_marketing_list");
+    if (!data.marketing.length) {
+      marketingList.innerHTML = `<div class="font-code-sm text-xs text-outline">No marketing components yet.</div>`;
+    } else {
+      marketingList.innerHTML = data.marketing.map((mark) => {
+        return `
+          <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+            <div class="min-w-0">
+              <span class="font-code-sm text-xs text-on-surface">Track: ${escapeHtml(mark.track_id || 'N/A')}</span>
+              <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(mark.property_name || 'Unassigned')}</span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+  } catch (err) {
+    console.error("Failed to load overview:", err);
+    showToast("Failed to load overview.", "error");
   }
 }

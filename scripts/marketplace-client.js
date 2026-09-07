@@ -523,3 +523,8 @@ async function marketplaceSelectWinner(taskId, submissionId) {
     ["taskId", "submissionId", "adminFloId", "time"]
   );
 }
+
+async function marketplaceGetOverview() {
+  return marketplaceGetRequest(`/api/marketplace/overview`);
+}
+

@@ -1110,6 +1110,9 @@
                         <button data-view="taskboard"
                             class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
                             onclick="setMarketplaceView('taskboard')">Taskboard</button>
+                        <button data-view="overview"
+                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
+                            onclick="setMarketplaceView('overview')">Overview</button>
                     </div>
                     <label id="marketplace_top100_toggle_wrap"
                         class="flex items-center gap-xs px-md py-sm bg-surface-container-low border border-white/10 rounded-lg cursor-pointer shrink-0">
@@ -1551,6 +1554,42 @@
                 <div id="marketplace_loading_state" class="glass-panel rounded-xl p-xl text-center">
                     <span class="material-symbols-outlined text-outline text-2xl animate-spin">progress_activity</span>
                     <p class="font-code-sm text-code-sm text-outline mt-2">Loading marketplace...</p>
+                </div>
+
+                <!-- Overview Panel: All People, Finance, and Marketing -->
+                <div id="marketplace_overview_panel" class="hidden space-y-gutter">
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">groups</span>
+                                All People
+                            </h2>
+                            <span id="overview_people_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="overview_people_list" class="space-y-xs"></div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">account_balance_wallet</span>
+                                All Finance
+                            </h2>
+                            <span id="overview_finance_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="overview_finance_list" class="space-y-xs"></div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">campaign</span>
+                                All Marketing
+                            </h2>
+                            <span id="overview_marketing_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="overview_marketing_list" class="space-y-xs"></div>
+                    </div>
                 </div>
 
                 <!-- Taskboard panel (separate tab) -->
