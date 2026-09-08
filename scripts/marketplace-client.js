@@ -528,3 +528,11 @@ async function marketplaceGetOverview() {
   return marketplaceGetRequest(`/api/marketplace/overview`);
 }
 
+async function marketplaceUpdatePersonProfile(updates) {
+  return signedMarketplaceRequest(
+    `/api/people`,
+    {},
+    { floId: floGlobals.myFloID, workProfile: updates.workProfile, experience: updates.experience, name: updates.name, cvUrl: updates.cvUrl, profileImageUrl: updates.profileImageUrl, xUrl: updates.xUrl, linkedinUrl: updates.linkedinUrl, websiteUrl: updates.websiteUrl },
+    ["floId", "workProfile", "experience", "name", "cvUrl", "profileImageUrl", "xUrl", "linkedinUrl", "websiteUrl", "time"]
+  );
+}

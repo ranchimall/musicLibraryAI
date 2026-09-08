@@ -193,6 +193,41 @@
         }
 
         function onLoadStartUp() {
+            // Check for a public profile link (?floId=...)
+            const urlParams = new URLSearchParams(window.location.search);
+            const publicFloId = urlParams.get('floId');
+
+            if (publicFloId) {
+                // Public Profile View 
+                document.getElementById('sign_in_gateway').classList.add('hidden');
+                document.getElementById('main_app_content').classList.remove('hidden');
+
+                // Hide all pages except the profile page
+                document.querySelectorAll('.inner-page').forEach(el => el.classList.add('hidden'));
+                document.getElementById('page_creator_profile').classList.remove('hidden');
+
+                // Hide header, player, and mobile nav for a clean standalone view
+                const header = document.querySelector('header');
+                if (header) header.classList.add('hidden');
+                document.getElementById('audio_player_footer').classList.add('hidden');
+                const mobileNav = document.getElementById('mobile_nav_bar');
+                if (mobileNav) mobileNav.classList.add('hidden');
+                // Check if the viewer is already logged in (from a previous session)
+                const storedUserFloId = localStorage.getItem('userFloId');
+                if (storedUserFloId) {
+                    floGlobals.myFloID = storedUserFloId;
+                    window.currentUserFloId = storedUserFloId;
+                    window.isLoggedIn = true;
+                } else {
+                    window.currentUserFloId = null;
+                    window.isLoggedIn = false;
+                }
+                // Load the public profile and trigger the liked-songs override
+                loadPersonProfile(publicFloId);
+                loadLikedSongs();
+                return;
+            }
+
             floDapps.setCustomPrivKeyInput(() => new Promise((resolve, reject) => {
                 document.getElementById('sign_in_gateway').classList.remove('hidden');
                 document.getElementById('main_app_content').classList.add('hidden');
@@ -232,6 +267,7 @@
                     }
                 } else {
                     floGlobals.myFloID = floDapps.user.id
+                    localStorage.setItem('userFloId', floGlobals.myFloID);
                     floGlobals.myBtcID = btcOperator.convert.legacy2bech(floDapps.user.id)
                 }
 
@@ -283,6 +319,7 @@
         function signOut() {
             if (confirm('Are you sure you want to sign out?')) {
                 floDapps.clearCredentials().then(() => {
+                    localStorage.removeItem('userFloId');
                     location.reload();
                 }).catch(console.error);
             }
@@ -489,29 +526,42 @@
     </div>
 
     <!-- USDAI TXID prompt: shown after user sends funds externally. -->
-    <div id="usdai_key_prompt" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
-        <div class="w-full max-w-md bg-surface p-6 md:p-8 rounded-xl border border-white/10 shadow-2xl relative mx-4 md:mx-0">
-            <button onclick="resolveUsdaiKeyPrompt(false)" class="absolute top-4 right-4 text-white hover:text-primary-fixed-dim bg-transparent border-none">
+    <div id="usdai_key_prompt"
+        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
+        <div
+            class="w-full max-w-md bg-surface p-6 md:p-8 rounded-xl border border-white/10 shadow-2xl relative mx-4 md:mx-0">
+            <button onclick="resolveUsdaiKeyPrompt(false)"
+                class="absolute top-4 right-4 text-white hover:text-primary-fixed-dim bg-transparent border-none">
                 <span class="material-symbols-outlined">close</span>
             </button>
-            <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest mb-2">Confirm Payment</h3>
-            <p class="font-code-sm text-xs text-outline mb-4">Open your FLO wallet, send the exact USDAI amount to the address shown below, then paste the Transaction ID.</p>
-            <div id="usdai_key_prompt_address_wrap" class="mb-4 rounded-lg bg-black/30 border border-white/5 p-3 space-y-1.5">
+            <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest mb-2">Confirm Payment
+            </h3>
+            <p class="font-code-sm text-xs text-outline mb-4">Open your FLO wallet, send the exact USDAI amount to the
+                address shown below, then paste the Transaction ID.</p>
+            <div id="usdai_key_prompt_address_wrap"
+                class="mb-4 rounded-lg bg-black/30 border border-white/5 p-3 space-y-1.5">
                 <div class="flex items-center justify-between font-code-sm text-[11px]">
                     <span class="text-outline">Send to address</span>
-                    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('usdai_key_prompt_address').textContent.trim()).then(()=>showToast('Address copied','success'))" class="text-outline hover:text-primary-fixed-dim flex items-center gap-1 bg-transparent border-none cursor-pointer p-0 text-[11px]">
+                    <button type="button"
+                        onclick="navigator.clipboard.writeText(document.getElementById('usdai_key_prompt_address').textContent.trim()).then(()=>showToast('Address copied','success'))"
+                        class="text-outline hover:text-primary-fixed-dim flex items-center gap-1 bg-transparent border-none cursor-pointer p-0 text-[11px]">
                         <span class="material-symbols-outlined text-[14px]">content_copy</span>
                         <span>Copy</span>
                     </button>
                 </div>
-                <div id="usdai_key_prompt_address" class="text-primary-fixed-dim font-code-sm text-xs break-all select-all font-mono leading-relaxed">—</div>
+                <div id="usdai_key_prompt_address"
+                    class="text-primary-fixed-dim font-code-sm text-xs break-all select-all font-mono leading-relaxed">—
+                </div>
             </div>
-            <input id="usdai_key_prompt_input" type="text" 
+            <input id="usdai_key_prompt_input" type="text"
                 class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim mb-2"
                 placeholder="Paste TXID here" />
             <div class="flex flex-wrap gap-sm">
-                <button onclick="resolveUsdaiKeyPrompt(true)" class="flex-1 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Verify & Mint</button>
-                <button onclick="resolveUsdaiKeyPrompt(false)" class="px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Cancel</button>
+                <button onclick="resolveUsdaiKeyPrompt(true)"
+                    class="flex-1 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Verify
+                    & Mint</button>
+                <button onclick="resolveUsdaiKeyPrompt(false)"
+                    class="px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Cancel</button>
             </div>
         </div>
     </div>
@@ -520,7 +570,8 @@
     <div id="marketplace_buy_loading"
         class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 hidden backdrop-blur-md p-4">
         <div class="w-full max-w-sm bg-surface p-8 rounded-xl border border-white/10 shadow-2xl text-center space-y-4">
-            <span class="material-symbols-outlined text-primary-fixed-dim text-3xl animate-spin">progress_activity</span>
+            <span
+                class="material-symbols-outlined text-primary-fixed-dim text-3xl animate-spin">progress_activity</span>
             <p id="marketplace_buy_loading_text" class="font-code-sm text-sm text-outline">Sending on-chain…</p>
         </div>
     </div>
@@ -594,8 +645,9 @@
                             <span
                                 class="font-display-lg text-xl sm:text-2xl md:text-3xl tracking-tighter text-on-surface truncate mt-0.5">Music
                                 Library</span>
-                                <span
-                                class="lg:hidden mt-1 text-[7px] sm:text-[8px] text-primary-fixed-dim font-code-sm uppercase tracking-[0.12em] whitespace-nowrap">AI Blockchain Contract</span>
+                            <span
+                                class="lg:hidden mt-1 text-[7px] sm:text-[8px] text-primary-fixed-dim font-code-sm uppercase tracking-[0.12em] whitespace-nowrap">AI
+                                Blockchain Contract</span>
                         </div>
                     </div>
                     <div class="hidden lg:flex items-center ml-2 pl-4 border-l border-white/20 shrink-0">
@@ -1080,7 +1132,8 @@
                             class="font-display-lg text-display-lg-mobile md:text-display-lg font-bold tracking-tight text-on-surface">
                             MARKET<span class="text-primary-fixed-dim">PLACE</span>
                         </h1>
-                        <p class="font-code-sm text-code-sm text-outline mt-1">Browse properties, manage the Main Token, and coordinate task-board work.</p>
+                        <p class="font-code-sm text-code-sm text-outline mt-1">Browse properties, manage the Main Token,
+                            and coordinate task-board work.</p>
                     </div>
                 </div>
 
@@ -1094,7 +1147,8 @@
                             aria-label="Select category" style="color-scheme: dark;">
                             <option value="">Loading categories...</option>
                         </select>
-                        <button id="marketplace_add_category_btn" onclick="toggleMarketplaceAddCategoryForm()" title="Add category (admin)"
+                        <button id="marketplace_add_category_btn" onclick="toggleMarketplaceAddCategoryForm()"
+                            title="Add category (admin)"
                             class="hidden shrink-0 flex items-center justify-center w-6 h-6 rounded text-outline hover:text-primary-fixed-dim hover:bg-white/5 transition-colors">
                             <span class="material-symbols-outlined text-base">add</span>
                         </button>
@@ -1118,7 +1172,8 @@
                         class="flex items-center gap-xs px-md py-sm bg-surface-container-low border border-white/10 rounded-lg cursor-pointer shrink-0">
                         <input id="marketplace_top100_toggle" type="checkbox" onchange="handleMarketplaceTop100Toggle()"
                             class="accent-[#00dbe9]" />
-                        <span class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Top 100 only</span>
+                        <span class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Top 100
+                            only</span>
                     </label>
                     <button id="marketplace_add_property_btn" onclick="toggleMarketplaceAddPropertyForm()"
                         class="hidden shrink-0 flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 text-primary-fixed-dim font-label-caps text-[10px] tracking-widest uppercase hover:bg-primary-fixed-dim/20 transition-all">
@@ -1160,7 +1215,8 @@
                 <div id="marketplace_add_property_form" class="hidden glass-panel rounded-xl p-md">
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-sm items-end">
                         <div class="sm:col-span-2">
-                            <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Property name</label>
+                            <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Property
+                                name</label>
                             <input id="marketplace_new_property_name" type="text"
                                 class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
                                 placeholder="e.g. Personal Poetry" />
@@ -1188,7 +1244,8 @@
                             Main Token
                         </h3>
                         <div class="flex items-center flex-wrap gap-md font-code-sm text-xs text-outline">
-                            <span>Price: <span id="marketplace_token_price" class="text-primary-fixed-dim">--</span></span>
+                            <span>Price: <span id="marketplace_token_price"
+                                    class="text-primary-fixed-dim">--</span></span>
                             <span>Supply: <span id="marketplace_token_supply">--</span></span>
                             <span>System valuation: <span id="marketplace_token_valuation">--</span></span>
                             <span>Your balance: <span id="marketplace_token_balance">--</span></span>
@@ -1198,10 +1255,16 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-gutter pt-sm border-t border-white/5">
                         <!-- Buy -->
                         <div class="space-y-sm">
-                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest flex items-center gap-1">Buy with USDAI
+                            <h4
+                                class="font-label-caps text-[10px] text-outline uppercase tracking-widest flex items-center gap-1">
+                                Buy with USDAI
                                 <span class="group relative inline-flex">
-                                    <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
-                                    <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">You send USDAI from your own FLO wallet to the address shown, then paste the Transaction ID</span>
+                                    <span
+                                        class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
+                                    <span
+                                        class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">You
+                                        send USDAI from your own FLO wallet to the address shown, then paste the
+                                        Transaction ID</span>
                                 </span>
                             </h4>
                             <div class="flex flex-col sm:flex-row gap-sm">
@@ -1211,21 +1274,32 @@
                                 <button id="marketplace_token_buy_btn" onclick="handleMarketplaceTokenBuy()"
                                     class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Buy</button>
                             </div>
-                            <p class="font-code-sm text-[11px] text-outline/60">Min <span id="marketplace_min_buy">0.001</span> · fee ~0.0003 FLO</p>
+                            <p class="font-code-sm text-[11px] text-outline/60">Min <span
+                                    id="marketplace_min_buy">0.001</span> · fee ~0.0003 FLO</p>
                             <p class="font-code-sm text-[10px] text-outline/50 flex items-center gap-1 min-w-0">
                                 <span class="shrink-0">Pay to</span>
                                 <span id="marketplace_usdai_address" class="truncate">loading…</span>
-                                <button onclick="navigator.clipboard.writeText(document.getElementById('marketplace_usdai_address').textContent).then(()=>showToast('Address copied','success'))" class="shrink-0 text-outline hover:text-primary-fixed-dim"><span class="material-symbols-outlined text-[14px]">content_copy</span></button>
+                                <button
+                                    onclick="navigator.clipboard.writeText(document.getElementById('marketplace_usdai_address').textContent).then(()=>showToast('Address copied','success'))"
+                                    class="shrink-0 text-outline hover:text-primary-fixed-dim"><span
+                                        class="material-symbols-outlined text-[14px]">content_copy</span></button>
                             </p>
-                            <p id="marketplace_token_buy_result" class="hidden font-code-sm text-xs text-primary-fixed-dim"></p>
+                            <p id="marketplace_token_buy_result"
+                                class="hidden font-code-sm text-xs text-primary-fixed-dim"></p>
                         </div>
 
                         <!-- Sell -->
                         <div class="space-y-sm">
-                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest flex items-center gap-1">Sell (queued)
+                            <h4
+                                class="font-label-caps text-[10px] text-outline uppercase tracking-widest flex items-center gap-1">
+                                Sell (queued)
                                 <span class="group relative inline-flex">
-                                    <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
-                                    <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Queued — paid from liquidity as buys arrive. Higher buy pressure = faster payout.</span>
+                                    <span
+                                        class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
+                                    <span
+                                        class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Queued
+                                        — paid from liquidity as buys arrive. Higher buy pressure = faster
+                                        payout.</span>
                                 </span>
                             </h4>
                             <div class="flex flex-col sm:flex-row gap-sm">
@@ -1233,45 +1307,49 @@
                                     class="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                     placeholder="Token amount" />
                                 <button onclick="handleMarketplaceTokenSell()"
-                                    class="shrink-0 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10">Queue sell</button>
+                                    class="shrink-0 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10">Queue
+                                    sell</button>
                             </div>
                             <p id="marketplace_token_sell_result" class="hidden font-code-sm text-xs text-outline"></p>
-                        <!-- Live sell-queue transparency metrics -->
-                        <div id="marketplace_sell_queue_stats" class="hidden pt-sm border-t border-white/5 space-y-xs">
-                            <div class="flex items-center justify-between">
-                                <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Queue
-                                    right now</h4>
-                                <button onclick="loadMarketplaceSellQueueStats()"
-                                    class="font-label-caps text-[9px] text-primary-fixed-dim uppercase tracking-widest hover:underline">Refresh</button>
+                            <!-- Live sell-queue transparency metrics -->
+                            <div id="marketplace_sell_queue_stats"
+                                class="hidden pt-sm border-t border-white/5 space-y-xs">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Queue
+                                        right now</h4>
+                                    <button onclick="loadMarketplaceSellQueueStats()"
+                                        class="font-label-caps text-[9px] text-primary-fixed-dim uppercase tracking-widest hover:underline">Refresh</button>
+                                </div>
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-xs font-code-sm text-xs">
+                                    <div><span class="text-outline block">Waiting</span><span id="sellq_pending"
+                                            class="text-on-surface">–</span></div>
+                                    <div><span class="text-outline block">Queued value</span><span id="sellq_value"
+                                            class="text-on-surface">–</span></div>
+                                    <div><span class="text-outline block">Oldest request</span><span id="sellq_oldest"
+                                            class="text-on-surface">–</span></div>
+                                    <div><span class="text-outline block">Payout rate</span><span id="sellq_rate"
+                                            class="text-primary-fixed-dim">–</span></div>
+                                </div>
+                                <div class="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                                    <div id="sellq_bar" class="h-full bg-primary-fixed-dim/60 transition-all"
+                                        style="width:0%"></div>
+                                </div>
+                                <p id="sellq_note" class="font-code-sm text-[11px] text-outline"></p>
                             </div>
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-xs font-code-sm text-xs">
-                                <div><span class="text-outline block">Waiting</span><span id="sellq_pending"
-                                        class="text-on-surface">–</span></div>
-                                <div><span class="text-outline block">Queued value</span><span id="sellq_value"
-                                        class="text-on-surface">–</span></div>
-                                <div><span class="text-outline block">Oldest request</span><span id="sellq_oldest"
-                                        class="text-on-surface">–</span></div>
-                                <div><span class="text-outline block">Payout rate</span><span id="sellq_rate"
-                                        class="text-primary-fixed-dim">–</span></div>
-                            </div>
-                            <div class="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                                <div id="sellq_bar" class="h-full bg-primary-fixed-dim/60 transition-all"
-                                    style="width:0%"></div>
-                            </div>
-                            <p id="sellq_note" class="font-code-sm text-[11px] text-outline"></p>
-                        </div>
                         </div>
                     </div>
 
                     <!-- Portfolio -->
                     <div class="pt-sm border-t border-white/5 space-y-xs">
-                        <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">My Top 100 positions</h4>
+                        <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">My Top 100
+                            positions</h4>
                         <div id="marketplace_portfolio_list" class="space-y-xs"></div>
                     </div>
                 </div>
 
                 <!-- Properties list: every bundle Property in the selected category -->
-                <div id="marketplace_properties_list" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
+                <div id="marketplace_properties_list"
+                    class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
                 </div>
 
                 <!-- Property detail: components, people, finance, and tasks for one bundle -->
@@ -1290,15 +1368,18 @@
                         <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
                             <div class="flex items-center justify-between">
                                 <span class="material-symbols-outlined text-primary-fixed-dim/60">payments</span>
-                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Price</span>
+                                <span
+                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Price</span>
                             </div>
-                            <div class="font-display-lg text-[28px] text-primary-fixed-dim" id="marketplace_stat_price">--
+                            <div class="font-display-lg text-[28px] text-primary-fixed-dim" id="marketplace_stat_price">
+                                --
                             </div>
                         </div>
                         <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
                             <div class="flex items-center justify-between">
                                 <span class="material-symbols-outlined text-primary-fixed-dim/60">trending_up</span>
-                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Scarcity</span>
+                                <span
+                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Scarcity</span>
                             </div>
                             <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_scarcity">--
                             </div>
@@ -1306,7 +1387,8 @@
                         <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
                             <div class="flex items-center justify-between">
                                 <span class="material-symbols-outlined text-primary-fixed-dim/60">bolt</span>
-                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Utility</span>
+                                <span
+                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Utility</span>
                             </div>
                             <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_utility">--
                             </div>
@@ -1314,9 +1396,11 @@
                         <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
                             <div class="flex items-center justify-between">
                                 <span class="material-symbols-outlined text-primary-fixed-dim/60">graphic_eq</span>
-                                <span class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Consumption</span>
+                                <span
+                                    class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Consumption</span>
                             </div>
-                            <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_consumption">--
+                            <div class="font-display-lg text-[28px] text-on-surface" id="marketplace_stat_consumption">
+                                --
                             </div>
                         </div>
                     </div>
@@ -1325,14 +1409,19 @@
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
                             <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Components</h3>
-                            <button id="marketplace_show_attach_component_btn" onclick="toggleMarketplaceAttachComponentForm()"
-                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Attach</button>
+                            <button id="marketplace_show_attach_component_btn"
+                                onclick="toggleMarketplaceAttachComponentForm()"
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+
+                                Attach</button>
                         </div>
                         <div id="marketplace_components_list" class="space-y-xs"></div>
-                        <div id="marketplace_attach_component_form" class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
+                        <div id="marketplace_attach_component_form"
+                            class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Type</label>
-                                <select id="marketplace_attach_component_type" onchange="loadMarketplaceComponentChoices()"
+                                <label
+                                    class="font-label-caps text-xs text-outline tracking-wider block mb-2">Type</label>
+                                <select id="marketplace_attach_component_type"
+                                    onchange="loadMarketplaceComponentChoices()"
                                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim">
                                     <option value="lyrics">Lyrics</option>
                                     <option value="music">Music</option>
@@ -1341,7 +1430,8 @@
                                 </select>
                             </div>
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Component</label>
+                                <label
+                                    class="font-label-caps text-xs text-outline tracking-wider block mb-2">Component</label>
                                 <select id="marketplace_attach_component_choice"
                                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim">
                                     <option value="">Loading...</option>
@@ -1356,19 +1446,24 @@
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
                             <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">People</h3>
-                            <button id="marketplace_show_attach_person_btn" onclick="toggleMarketplaceAttachPersonForm()"
-                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Attach</button>
+                            <button id="marketplace_show_attach_person_btn"
+                                onclick="toggleMarketplaceAttachPersonForm()"
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+
+                                Attach</button>
                         </div>
                         <div id="marketplace_people_list" class="space-y-xs"></div>
-                        <div id="marketplace_attach_person_form" class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
+                        <div id="marketplace_attach_person_form"
+                            class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Person's FLO ID</label>
+                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Person's
+                                    FLO ID</label>
                                 <input id="marketplace_attach_person_floid" type="text"
                                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                     placeholder="Must already have a people profile" />
                             </div>
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Role</label>
+                                <label
+                                    class="font-label-caps text-xs text-outline tracking-wider block mb-2">Role</label>
                                 <input id="marketplace_attach_person_role" type="text"
                                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                     placeholder="e.g. vocals, marketing" />
@@ -1378,8 +1473,10 @@
                         </div>
                         <div class="pt-sm border-t border-white/5">
                             <button onclick="toggleMarketplaceRegisterPersonForm()"
-                                class="font-label-caps text-[10px] text-outline hover:text-primary-fixed-dim uppercase tracking-widest">Register my own profile</button>
-                            <div id="marketplace_register_person_form" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-sm mt-sm">
+                                class="font-label-caps text-[10px] text-outline hover:text-primary-fixed-dim uppercase tracking-widest">Register
+                                my own profile</button>
+                            <div id="marketplace_register_person_form"
+                                class="hidden grid grid-cols-1 sm:grid-cols-2 gap-sm mt-sm">
                                 <input id="marketplace_register_work_profile" type="text"
                                     class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                     placeholder="Work profile (required)" />
@@ -1393,7 +1490,8 @@
                                     class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                     placeholder="CV link (optional)" />
                                 <button onclick="handleMarketplaceRegisterPerson()"
-                                    class="sm:col-span-2 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Save profile</button>
+                                    class="sm:col-span-2 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Save
+                                    profile</button>
                             </div>
                         </div>
                     </div>
@@ -1403,12 +1501,15 @@
                         <div class="flex items-center justify-between">
                             <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Tasks</h3>
                             <button id="marketplace_show_attach_task_btn" onclick="toggleMarketplaceAttachTaskForm()"
-                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Attach</button>
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+
+                                Attach</button>
                         </div>
                         <div id="marketplace_tasks_list" class="space-y-xs"></div>
-                        <div id="marketplace_attach_task_form" class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
+                        <div id="marketplace_attach_task_form"
+                            class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Task</label>
+                                <label
+                                    class="font-label-caps text-xs text-outline tracking-wider block mb-2">Task</label>
                                 <select id="marketplace_attach_task_id"
                                     class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                     style="color-scheme: dark;">
@@ -1416,22 +1517,28 @@
                                 </select>
                             </div>
                             <button onclick="handleMarketplaceAttachTask()"
-                                class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Attach Task</button>
+                                class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Attach
+                                Task</button>
                         </div>
                     </div>
 
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between gap-sm">
-                            <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Finance Components</h3>
+                            <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Finance
+                                Components</h3>
                             <button id="marketplace_show_add_finance_btn" onclick="toggleMarketplaceAddFinanceForm()"
-                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Add</button>
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+
+                                Add</button>
                         </div>
                         <div id="marketplace_finance_components_list" class="space-y-xs"></div>
                         <div id="marketplace_add_finance_form" class="hidden space-y-sm pt-sm border-t border-white/5">
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-sm">
                                 <div>
-                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Component type</label>
-                                    <select id="marketplace_finance_component_type" onchange="toggleMarketplaceFinanceComponentFields()"
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-2">Component
+                                        type</label>
+                                    <select id="marketplace_finance_component_type"
+                                        onchange="toggleMarketplaceFinanceComponentFields()"
                                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                         style="color-scheme: dark;">
                                         <option value="budget">Budget</option>
@@ -1441,50 +1548,62 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Title</label>
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-2">Title</label>
                                     <input id="marketplace_finance_title" type="text"
                                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                         placeholder="e.g. Recording budget" />
                                 </div>
                                 <div class="sm:col-span-2">
-                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Description</label>
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-2">Description</label>
                                     <textarea id="marketplace_finance_description" rows="3"
                                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                         placeholder="Short explanation of what this component covers"></textarea>
                                 </div>
                                 <div>
-                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Planned Amount</label>
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-2">Planned
+                                        Amount</label>
                                     <input id="marketplace_finance_amount" type="number" min="0" step="any"
                                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                         placeholder="Optional" />
                                 </div>
                                 <div>
-                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Currency (display only)</label>
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-2">Currency
+                                        (display only)</label>
                                     <input id="marketplace_finance_currency" type="text" value="USDAI"
                                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                         placeholder="USDAI" />
                                 </div>
                                 <div class="sm:col-span-2">
-                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Terms</label>
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-2">Terms</label>
                                     <textarea id="marketplace_finance_terms" rows="3"
                                         class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
                                         placeholder="Optional notes, milestones, or constraints"></textarea>
                                 </div>
                             </div>
-                            <div id="marketplace_royalty_split_wrap" class="hidden space-y-sm pt-sm border-t border-white/5">
+                            <div id="marketplace_royalty_split_wrap"
+                                class="hidden space-y-sm pt-sm border-t border-white/5">
                                 <div class="flex items-center justify-between gap-sm">
-                                    <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Royalty splits</h4>
+                                    <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">
+                                        Royalty splits</h4>
                                     <button type="button" onclick="addMarketplaceRoyaltySplitRow()"
-                                        class="font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Add row</button>
+                                        class="font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+
+                                        Add row</button>
                                 </div>
                                 <div id="marketplace_royalty_split_rows" class="space-y-sm"></div>
                             </div>
-                            <p class="font-code-sm text-[11px] text-outline/60">Planning data only - does not transfer or invest funds.</p>
+                            <p class="font-code-sm text-[11px] text-outline/60">Planning data only - does not transfer
+                                or invest funds.</p>
                             <button onclick="handleMarketplaceAddFinanceComponent()"
                                 class="w-full sm:w-auto px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">Create</button>
                         </div>
                         <div class="pt-sm border-t border-white/5">
-                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Algorithmic Allocation</h4>
+                            <h4 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Algorithmic
+                                Allocation</h4>
                             <div id="marketplace_finance_allocations_list" class="space-y-xs"></div>
                         </div>
                     </div>
@@ -1494,15 +1613,20 @@
                         <div class="flex items-center justify-between">
                             <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Usage Events</h3>
                             <button id="marketplace_show_usage_btn" onclick="toggleMarketplaceUsageForm()"
-                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+ Add</button>
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+
+                                Add</button>
                         </div>
                         <div id="marketplace_usage_list" class="space-y-xs">
                             <div class="font-code-sm text-xs text-outline">No usage events logged yet.</div>
                         </div>
-                        <div id="marketplace_add_usage_form" class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
+                        <div id="marketplace_add_usage_form"
+                            class="hidden flex flex-col sm:flex-row gap-sm items-end pt-sm border-t border-white/5">
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Type</label>
-                                <select id="marketplace_usage_type" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white" style="color-scheme: dark;">
+                                <label
+                                    class="font-label-caps text-xs text-outline tracking-wider block mb-2">Type</label>
+                                <select id="marketplace_usage_type"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white"
+                                    style="color-scheme: dark;">
                                     <option value="embed">Embed</option>
                                     <option value="external_play">External Play</option>
                                     <option value="licensed_media">Licensed Media</option>
@@ -1512,30 +1636,36 @@
                                 </select>
                             </div>
                             <div class="flex-1">
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Description</label>
-                                <input id="marketplace_usage_desc" type="text" class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" placeholder="e.g., Used in TV ad" />
+                                <label
+                                    class="font-label-caps text-xs text-outline tracking-wider block mb-2">Description</label>
+                                <input id="marketplace_usage_desc" type="text"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                    placeholder="e.g., Used in TV ad" />
                             </div>
-                            <button onclick="handleMarketplaceLogUsage()" class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">Log</button>
+                            <button onclick="handleMarketplaceLogUsage()"
+                                class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all">Log</button>
                         </div>
                     </div>
 
                     <!-- Interest bar -->
-                    <div class="glass-panel rounded-xl p-md flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
+                    <div
+                        class="glass-panel rounded-xl p-md flex flex-col sm:flex-row sm:items-center justify-between gap-sm">
                         <p class="font-code-sm text-xs text-outline/70 flex items-center gap-1">Interest
                             <span class="group relative inline-flex">
-                                <span class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
-                                <span class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Feeds scarcity score. No commitment.</span>
+                                <span
+                                    class="material-symbols-outlined text-[14px] text-outline/60 cursor-help">info</span>
+                                <span
+                                    class="hidden group-hover:block absolute left-1/2 -translate-x-1/2 top-full mt-2 w-56 p-2 rounded-lg bg-[#1c1b1b] border border-white/10 text-[11px] leading-snug text-outline normal-case tracking-normal z-10">Feeds
+                                    scarcity score. No commitment.</span>
                             </span>
                         </p>
                         <div class="flex items-center gap-sm w-full sm:w-auto">
-                            <button onclick="handleMarketplaceInterest('want_to_buy')"
-                                title="I want to buy"
+                            <button onclick="handleMarketplaceInterest('want_to_buy')" title="I want to buy"
                                 class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 text-primary-fixed-dim font-label-caps text-[10px] tracking-widest uppercase hover:bg-primary-fixed-dim/20 active:scale-95 transition-all">
                                 <span class="material-symbols-outlined text-base">add_shopping_cart</span>
                                 <span>Buy Interest</span>
                             </button>
-                            <button onclick="handleMarketplaceInterest('want_to_sell')"
-                                title="I want to sell"
+                            <button onclick="handleMarketplaceInterest('want_to_sell')" title="I want to sell"
                                 class="flex-1 sm:flex-none flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/10 active:scale-95 transition-all">
                                 <span class="material-symbols-outlined text-base">sell</span>
                                 <span>Sell Interest</span>
@@ -1560,7 +1690,8 @@
                 <div id="marketplace_overview_panel" class="hidden space-y-gutter">
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
-                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
                                 <span class="material-symbols-outlined text-base">groups</span>
                                 All People
                             </h2>
@@ -1571,7 +1702,8 @@
 
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
-                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
                                 <span class="material-symbols-outlined text-base">account_balance_wallet</span>
                                 All Finance
                             </h2>
@@ -1582,7 +1714,8 @@
 
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
-                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
                                 <span class="material-symbols-outlined text-base">campaign</span>
                                 All Marketing
                             </h2>
@@ -1596,7 +1729,8 @@
                 <div id="marketplace_taskboard_panel" class="hidden space-y-gutter">
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
-                            <h2 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
                                 <span class="material-symbols-outlined text-base">handyman</span>
                                 Task board
                             </h2>
@@ -1607,13 +1741,16 @@
                                 Post a task
                             </button>
                         </div>
-                        <p class="font-code-sm text-[11px] text-outline/60">Lyrics · Music · Vocals · Marketing — request → claim → deliver</p>
+                        <p class="font-code-sm text-[11px] text-outline/60">Lyrics · Music · Vocals · Marketing —
+                            request → claim → deliver</p>
 
                         <!-- Post-a-task form (hidden by default) -->
                         <div id="financing_post_task_form" class="hidden space-y-sm pt-sm border-t border-white/5">
                             <div>
-                                <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Brief</label>
-                                <div id="financing_task_brief_editor" class="quill-dark rounded-xl overflow-hidden border border-white/10"></div>
+                                <label
+                                    class="font-label-caps text-xs text-outline tracking-wider block mb-2">Brief</label>
+                                <div id="financing_task_brief_editor"
+                                    class="quill-dark rounded-xl overflow-hidden border border-white/10"></div>
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-sm max-w-md">
                                 <div>
@@ -1645,7 +1782,8 @@
                         </div>
 
                         <!-- Kanban: Open / Completed — stacks on mobile, 2 cols from md -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-sm md:gap-md lg:gap-gutter pt-sm border-t border-white/5">
+                        <div
+                            class="grid grid-cols-1 md:grid-cols-2 gap-sm md:gap-md lg:gap-gutter pt-sm border-t border-white/5">
                             <div>
                                 <h3
                                     class="font-label-caps text-[10px] text-outline uppercase tracking-widest mb-sm flex items-center gap-xs">
@@ -1677,108 +1815,142 @@
         <section id="page_creator_profile" class="inner-page hidden w-full relative pt-20 pb-32">
             <div class="px-margin-mobile md:px-margin-desktop">
 
-                <!-- Profile Header -->
-                <section class="pt-lg flex flex-col md:flex-row md:items-center gap-lg mb-xl">
-                    <div class="flex items-start gap-5">
-                        <div
-                            class="w-24 h-24 rounded-xl cyber-glow-border overflow-hidden bg-surface-container flex items-center justify-center shrink-0">
-                            <span class="material-symbols-outlined text-5xl text-primary-fixed-dim">person</span>
+                <!-- AirdropAlert Style Profile Header -->
+                <div class="glass-panel rounded-2xl p-md md:p-xl mb-xl overflow-hidden relative">
+                    <!-- Glow Background -->
+                    <div
+                        class="absolute -top-20 -right-20 w-64 h-64 bg-primary-fixed-dim/10 rounded-full blur-[80px] pointer-events-none">
+                    </div>
+
+                    <div class="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
+                        <!-- Avatar -->
+                        <div class="shrink-0">
+                            <div
+                                class="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-primary-fixed-dim/20 shadow-2xl bg-surface-container flex items-center justify-center">
+                                <img id="profile_person_avatar" src="" class="hidden w-full h-full object-cover"
+                                    alt="Profile Image">
+                                <span id="profile_person_avatar_fallback"
+                                    class="material-symbols-outlined text-6xl text-primary-fixed-dim">person</span>
+                            </div>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <h1
-                                class="font-display-lg text-display-lg-mobile md:text-display-lg tracking-tighter text-on-surface mb-xs truncate">
-                                MY_<span class="text-primary-fixed-dim">PROFILE</span>
-                            </h1>
-                            <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest">FLO Address</p>
-                            <div class="flex items-center gap-xs">
-                                <p id="profile_flo_id_full"
-                                    class="font-code-sm text-code-sm text-primary-fixed-dim truncate flex-1 min-w-0">---
-                                </p>
-                                <button id="profile_copy_id_btn" type="button"
-                                    class="shrink-0 text-outline hover:text-primary-fixed-dim transition-colors"
-                                    title="Copy address">
-                                    <span class="material-symbols-outlined text-sm">content_copy</span>
+
+                        <!-- Info Block -->
+                        <div class="flex-1 min-w-0 text-center md:text-left">
+                            <div class="flex flex-col md:flex-row items-center gap-3 mb-2">
+                                <span id="profile_person_role"
+                                    class="px-sm py-base bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 rounded-full text-primary-fixed-dim font-label-caps text-[10px] tracking-widest uppercase">FOUNDER</span>
+                                <button id="copy_profile_link_btn" onclick="copyPublicProfileLink()"
+                                    class="flex items-center gap-1 text-outline hover:text-primary-fixed-dim transition-colors text-xs font-code-sm bg-transparent border-none cursor-pointer">
+                                    <span class="material-symbols-outlined text-[16px]">link</span> Copy Public Link
                                 </button>
                             </div>
 
-                        </div>
-                    </div>
+                            <h1 id="profile_person_name"
+                                class="font-display-lg text-4xl md:text-5xl text-white mb-3 tracking-tighter">Loading...
+                            </h1>
+                            <p id="profile_person_bio"
+                                class="text-on-surface-variant text-base md:text-lg leading-relaxed max-w-2xl mb-4">
+                                Writing guides on airdrops...</p>
 
-                </section>
+                            <!-- Social Links -->
+                            <div class="flex flex-wrap justify-center md:justify-start items-center gap-4 text-sm">
+                                <a id="profile_x_link" href="#" target="_blank"
+                                    class="hidden text-primary-fixed-dim hover:underline font-code-sm flex items-center gap-1">X
+                                    / @username</a>
+                                <a id="profile_linkedin_link" href="#" target="_blank"
+                                    class="hidden text-primary-fixed-dim hover:underline font-code-sm flex items-center gap-1">LinkedIn</a>
+                                <a id="profile_website_link" href="#" target="_blank"
+                                    class="hidden text-primary-fixed-dim hover:underline font-code-sm flex items-center gap-1">Website</a>
+                                <a id="profile_edit_btn" onclick="toggleProfileEditForm()"
+                                    class="hidden text-outline hover:text-white font-code-sm flex items-center gap-1 cursor-pointer">Edit
+                                    Profile</a>
+                            </div>
 
-                <!-- Content Grid: Liked Songs  + Stats -->
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-xl">
-
-                    <!-- Liked Songs -->
-                    <section class="lg:col-span-8 min-w-0">
-                        <div class="flex justify-between items-end w-full mb-lg">
-                            <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
-                                <span class="material-symbols-outlined text-primary-fixed-dim"
-                                    style="font-variation-settings:'FILL' 1;">
-                                    favorite
-                                </span>
-                                Liked Songs
-                            </h2>
-
-                            <p id="profile_liked_count"
-                                class="font-code-sm text-code-sm text-outline uppercase tracking-widest">
-                                --- TRACKS
-                            </p>
-                        </div>
-                        <div id="profile_liked_grid" class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
-                            <div class="col-span-full text-center text-outline py-12 font-code-sm">Loading liked
-                                songs...</div>
-                        </div>
-                    </section>
-
-                    <!-- Sidebar: Listening Stats -->
-                    <aside class="lg:col-span-4 space-y-lg">
-                        <div class="space-y-md">
-                            <h2 class="font-headline-md text-headline-md text-on-surface">Listening Stats</h2>
-                            <div class="glass-card p-md md:p-lg rounded-xl grid grid-cols-2 md:grid-cols-3 gap-md">
-                                <div class="flex flex-col items-center text-center">
-                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Liked Tracks
-                                    </p>
-                                    <p class="font-display-lg text-[24px] md:text-[28px] text-primary-fixed-dim"
-                                        id="profile_stat_liked">
-                                        0
-                                    </p>
+                            <!-- Edit Form (Hidden) -->
+                            <div id="profile_edit_form"
+                                class="hidden mt-6 pt-6 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                                <div class="md:col-span-2">
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-1">Name</label>
+                                    <input id="edit_profile_name" type="text" placeholder="Your display name"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
                                 </div>
-
-                                <div class="flex flex-col items-center text-center">
-                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Market Plays
-                                    </p>
-                                    <p id="profile_stat_market"
-                                        class="font-display-lg text-[24px] md:text-[28px] text-on-surface">
-                                        0
-                                    </p>
+                                <div class="md:col-span-2">
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-1">Work
+                                        Profile (Bio)</label>
+                                    <textarea id="edit_profile_work" rows="3" placeholder="What do you do?"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white"></textarea>
                                 </div>
-
-                                <div class="flex flex-col items-center text-center col-span-2 md:col-span-1">
-                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Source Plays
-                                    </p>
-                                    <p class="font-display-lg text-[24px] md:text-[28px] text-on-surface"
-                                        id="profile_stat_plays">
-                                        0
-                                    </p>
+                                <div class="md:col-span-2">
+                                    <label
+                                        class="font-label-caps text-xs text-outline tracking-wider block mb-1">Experience</label>
+                                    <textarea id="edit_profile_exp" rows="2" placeholder="Your experience / background"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white"></textarea>
                                 </div>
-
-                                <div class="col-span-2 md:col-span-3 pt-xs border-t border-white/5">
-                                    <p class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">
-                                        Top Artist
-                                    </p>
-                                    <p class="font-code-sm text-code-sm text-secondary-fixed-dim truncate"
-                                        id="profile_stat_artist">
-                                        ---
-                                    </p>
+                                <div class="md:col-span-2">
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-1">CV
+                                        URL</label>
+                                    <input id="edit_profile_cv" type="text" placeholder="Link to your CV (optional)"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
                                 </div>
+                                <input id="edit_profile_img" type="text" placeholder="Image URL"
+                                    class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
+                                <input id="edit_profile_x" type="text" placeholder="X (Twitter) URL"
+                                    class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
+                                <input id="edit_profile_li" type="text" placeholder="LinkedIn URL"
+                                    class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
+                                <input id="edit_profile_site" type="text" placeholder="Website URL"
+                                    class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white">
+                                <button onclick="saveProfileDetails()"
+                                    class="md:col-span-2 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-bold text-sm uppercase">Save
+                                    Profile</button>
                             </div>
                         </div>
-                    </aside>
+                    </div>
+                </div>
 
+                <!-- Stats Row -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-xl">
+                    <div class="glass-panel p-md rounded-xl flex flex-col gap-1 text-center md:text-left">
+                        <span id="profile_stat_properties" class="font-display-lg text-3xl text-on-surface">0</span>
+                        <span class="font-label-caps text-[10px] text-outline uppercase">Properties</span>
+                    </div>
+                    <div class="glass-panel p-md rounded-xl flex flex-col gap-1 text-center md:text-left">
+                        <span id="profile_stat_components" class="font-display-lg text-3xl text-on-surface">0</span>
+                        <span class="font-label-caps text-[10px] text-outline uppercase">Components</span>
+                    </div>
+                    <div class="glass-panel p-md rounded-xl flex flex-col gap-1 text-center md:text-left">
+                        <span id="profile_stat_tasks" class="font-display-lg text-3xl text-on-surface">0</span>
+                        <span class="font-label-caps text-[10px] text-outline uppercase">Tasks Won</span>
+                    </div>
+                    <div class="glass-panel p-md rounded-xl flex flex-col gap-1 text-center md:text-left">
+                        <span id="profile_stat_plays" class="font-display-lg text-3xl text-primary-fixed-dim">0</span>
+                        <span class="font-label-caps text-[10px] text-outline uppercase">Total Plays</span>
+                    </div>
+                </div>
+
+                <!-- "What I work on" / Skills section -->
+                <div class="glass-panel rounded-xl p-md md:p-lg mb-xl">
+                    <h2
+                        class="font-label-caps text-xs text-outline uppercase tracking-widest mb-4 border-b border-white/5 pb-4">
+                        What I work on</h2>
+                    <div id="profile_skills_grid" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+
+                <!-- Liked Songs Section -->
+                <div class="flex justify-between items-end w-full mb-lg">
+                    <h2 class="font-headline-md text-headline-md text-on-surface flex items-center gap-xs">
+                        <span class="material-symbols-outlined text-primary-fixed-dim"
+                            style="font-variation-settings:'FILL' 1;">favorite</span>
+                        Liked Songs
+                    </h2>
+                    <p id="profile_liked_count"
+                        class="font-code-sm text-code-sm text-outline uppercase tracking-widest">--- TRACKS</p>
+                </div>
+                <div id="profile_liked_grid" class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+                    <div class="col-span-full text-center text-outline py-12 font-code-sm">Loading liked songs...</div>
                 </div>
 
             </div>
@@ -2590,7 +2762,7 @@
     </div>
 
 
-    <nav
+    <nav id="mobile_nav_bar"
         class="lg:hidden fixed bottom-0 w-full z-50 bg-surface-container-low/90 backdrop-blur-2xl border-t border-white/5 flex items-center justify-around h-16 px-2">
         <button onclick="routeTo('page_explore')"
             class="flex flex-col items-center justify-center gap-1 w-full h-full text-primary-fixed-dim transition-colors">

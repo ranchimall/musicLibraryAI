@@ -514,7 +514,7 @@ function trackCardHtml(t, gridPrefix) {
             <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
                 ${
                   videoUrl
-                    ? `<video
+      ? `<video
         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         src="${videoUrl}"
         autoplay
@@ -524,11 +524,11 @@ function trackCardHtml(t, gridPrefix) {
         preload="metadata"
         aria-label="${title} by ${artist}">
     </video>`
-                    : `<img
+      : `<img
         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         alt="${title} by ${artist}"
         src="${cover}" />`
-                }
+    }
                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
                         <span class="material-symbols-outlined text-4xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
@@ -1245,31 +1245,31 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
 
   // Immediately increment platform plays in DB and UI
   if (track && track.id) {
-  marketplaceRecordPlatformPlay(track.id)
-    .then((data) => {
-      if (data.success) {
-        // Keep the TRACKS data in sync
-        track.marketPlayCount = data.playCount;
+    marketplaceRecordPlatformPlay(track.id)
+      .then((data) => {
+        if (data.success) {
+          // Keep the TRACKS data in sync
+          track.marketPlayCount = data.playCount;
 
-        // Update visible card counts
-        ["explore", "library", "profile", "dashboard"].forEach((prefix) => {
-          const marketEl = document.getElementById(
-            `marketplays-${prefix}-${track.id}`,
-          );
+          // Update visible card counts
+          ["explore", "library", "profile", "dashboard"].forEach((prefix) => {
+            const marketEl = document.getElementById(
+              `marketplays-${prefix}-${track.id}`,
+            );
 
-          if (marketEl) {
-            marketEl.textContent = data.playCount.toLocaleString();
-            marketEl.setAttribute("data-plays", data.playCount);
-          }
-        });
+            if (marketEl) {
+              marketEl.textContent = data.playCount.toLocaleString();
+              marketEl.setAttribute("data-plays", data.playCount);
+            }
+          });
 
-        // Update dashboard total immediately
-        const uploads = getMyUploads();
-        updateDashboardStats(uploads, null);
-      }
-    })
-    .catch(console.error);
-}
+          // Update dashboard total immediately
+          const uploads = getMyUploads();
+          updateDashboardStats(uploads, null);
+        }
+      })
+      .catch(console.error);
+  }
 
   // Use the track ID directly when available.
   // This works for Suno (.mp3), Flow Music (.m4a), and other formats.
@@ -1616,3 +1616,198 @@ async function fetchLivePlaysQueue(tracks, gridPrefix = "explore") {
     await new Promise((r) => setTimeout(r, 1000));
   }
 }
+
+// ─── Profile Page Functions ────────────────────────────────────────────────
+
+// Get URL parameters
+function getUrlParam(param) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(param);
+}
+
+// Load the profile (Own or Public)
+async function loadPersonProfile(floId) {
+  const currentUser = floGlobals.myFloID || window.currentUserFloId || null;
+  const isOwnProfile = (!floId) || (currentUser && floId === currentUser);
+  const targetId = floId || currentUser || '';
+
+  // Fetch profile (returns the person object or null)
+  const person = await marketplaceGetPerson(targetId);
+
+  if (!person) {
+    // No profile registered yet — show a friendly empty state
+    document.getElementById('profile_person_name').textContent = truncateFloId(targetId);
+    document.getElementById('profile_person_bio').textContent = "No profile yet. Click 'Edit Profile' to get started.";
+    document.getElementById('profile_person_role').textContent = "NEW MEMBER";
+
+    // Reset stats to 0
+    document.getElementById('profile_stat_properties').textContent = "0";
+    document.getElementById('profile_stat_components').textContent = "0";
+    document.getElementById('profile_stat_tasks').textContent = "0";
+    document.getElementById('profile_stat_plays').textContent = "0";
+
+    // Show the Edit button if it's your own profile
+    const editBtn = document.getElementById('profile_edit_btn');
+    if (editBtn && isOwnProfile) editBtn.classList.remove('hidden');
+
+    return;
+  }
+
+  // Profile exists — use `person` directly
+  const p = person;
+
+  // Basic Info
+  document.getElementById('profile_person_name').textContent = p.name || truncateFloId(targetId);
+  document.getElementById('profile_person_bio').textContent = p.work_profile || "No bio yet.";
+  document.getElementById('profile_person_role').textContent = "CREATOR";
+
+  // Social Links
+  if (p.profile_image_url) {
+    const img = document.getElementById('profile_person_avatar');
+    img.src = p.profile_image_url;
+    img.classList.remove('hidden');
+    document.getElementById('profile_person_avatar_fallback').classList.add('hidden');
+  }
+  if (p.x_url) { const link = document.getElementById('profile_x_link'); link.href = p.x_url; link.classList.remove('hidden'); }
+  if (p.linkedin_url) { const link = document.getElementById('profile_linkedin_link'); link.href = p.linkedin_url; link.classList.remove('hidden'); }
+  if (p.website_url) { const link = document.getElementById('profile_website_link'); link.href = p.website_url; link.classList.remove('hidden'); }
+
+  // Stats
+  document.getElementById('profile_stat_properties').textContent = p.property_count || 0;
+  document.getElementById('profile_stat_components').textContent = p.component_count || 0;
+  document.getElementById('profile_stat_tasks').textContent = p.task_count || 0;
+  document.getElementById('profile_stat_plays').textContent = "0";
+
+  // Skills Grid
+  const skillsContainer = document.getElementById('profile_skills_grid');
+  const skills = [];
+  if (p.work_profile) skills.push({ title: 'Primary Profile', desc: p.work_profile });
+  if (p.experience) skills.push({ title: 'Experience', desc: p.experience });
+  if (skills.length === 0) skills.push({ title: 'General', desc: 'Open to work' });
+
+  skillsContainer.innerHTML = skills.map(s => `
+    <div class="border-l-2 border-primary-fixed-dim/50 pl-4">
+      <h3 class="text-white font-semibold text-sm mb-1">${escapeHtml(s.title)}</h3>
+      <p class="text-outline text-sm">${escapeHtml(s.desc)}</p>
+    </div>
+  `).join('');
+
+  // Only show Edit button if it's my own profile
+  const editBtn = document.getElementById('profile_edit_btn');
+  if (editBtn && isOwnProfile) editBtn.classList.remove('hidden');
+}
+
+// Copy Public Link
+function copyPublicProfileLink() {
+  const url = window.location.origin + window.location.pathname + '?page=profile&floId=' + floGlobals.myFloID;
+  navigator.clipboard.writeText(url).then(() => showToast("Profile link copied!", "success"));
+}
+
+// Toggle Edit Form
+function toggleProfileEditForm() {
+  const form = document.getElementById('profile_edit_form');
+  form.classList.toggle('hidden');
+
+  // Only fetch & fill when opening the form
+  if (!form.classList.contains('hidden')) {
+    marketplaceGetPerson(floGlobals.myFloID).then(person => {
+      if (!person) return; // No profile yet — form stays blank for first-time setup
+      if (person.name) document.getElementById('edit_profile_name').value = person.name;
+      if (person.work_profile) document.getElementById('edit_profile_work').value = person.work_profile;
+      if (person.experience) document.getElementById('edit_profile_exp').value = person.experience;
+      if (person.cv_url) document.getElementById('edit_profile_cv').value = person.cv_url;
+      if (person.profile_image_url) document.getElementById('edit_profile_img').value = person.profile_image_url;
+      if (person.x_url) document.getElementById('edit_profile_x').value = person.x_url;
+      if (person.linkedin_url) document.getElementById('edit_profile_li').value = person.linkedin_url;
+      if (person.website_url) document.getElementById('edit_profile_site').value = person.website_url;
+    });
+  }
+}
+
+// Save Profile
+async function saveProfileDetails() {
+  const updates = {
+    name: document.getElementById('edit_profile_name').value.trim(),
+    workProfile: document.getElementById('edit_profile_work').value.trim(),
+    experience: document.getElementById('edit_profile_exp').value.trim(),
+    cvUrl: document.getElementById('edit_profile_cv').value.trim(),
+    profileImageUrl: document.getElementById('edit_profile_img').value.trim(),
+    xUrl: document.getElementById('edit_profile_x').value.trim(),
+    linkedinUrl: document.getElementById('edit_profile_li').value.trim(),
+    websiteUrl: document.getElementById('edit_profile_site').value.trim()
+  };
+
+  try {
+    await marketplaceUpdatePersonProfile(updates);
+    showToast("Profile saved!", "success");
+    document.getElementById('profile_edit_form').classList.add('hidden');
+    await loadPersonProfile(floGlobals.myFloID);
+  } catch (err) {
+    console.error("Failed to save profile:", err);
+    showToast(err.message || "Failed to save profile.", "error");
+  }
+}
+
+// Override loadLikedSongs to check for public profile
+const originalLoadLikedSongs = window.loadLikedSongs;
+window.loadLikedSongs = async function () {
+  const publicId = getUrlParam('floId');
+  
+  if (publicId) {
+    await loadPersonProfile(publicId);
+
+    const isLoggedIn = window.isLoggedIn;
+    const isOwnProfile = isLoggedIn && (publicId === window.currentUserFloId);
+
+    if (isOwnProfile) {
+      // Own profile: show liked songs normally
+      if (typeof originalLoadLikedSongs === 'function') {
+        await originalLoadLikedSongs();
+      }
+    } else if (isLoggedIn) {
+      // Logged in but viewing someone else's profile
+      document.getElementById('profile_liked_grid').innerHTML = `
+        <div class="col-span-full flex flex-col items-center justify-center gap-5 py-16 px-6 text-center">
+          <div class="w-16 h-16 rounded-full bg-primary-fixed-dim/10 border border-primary-fixed-dim/20 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary-fixed-dim text-3xl">person</span>
+          </div>
+          <div>
+            <p class="text-white font-semibold text-base mb-1">You are viewing someone else's profile</p>
+            <p class="text-outline text-sm">Liked songs are private to the owner.</p>
+          </div>
+          <button onclick="goToOwnProfile()"
+            class="px-6 py-2.5 rounded-xl bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[11px] tracking-widest uppercase hover:opacity-90 transition-opacity">
+            View your own profile
+          </button>
+        </div>`;
+    } else {
+      // Not logged in
+      document.getElementById('profile_liked_grid').innerHTML = `
+        <div class="col-span-full flex flex-col items-center justify-center gap-5 py-16 px-6 text-center">
+          <div class="w-16 h-16 rounded-full bg-primary-fixed-dim/10 border border-primary-fixed-dim/20 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary-fixed-dim text-3xl">lock</span>
+          </div>
+          <div>
+            <p class="text-white font-semibold text-base mb-1">Sign in to create your own profile page</p>
+            <p class="text-outline text-sm">Liked songs are only visible to the profile owner.</p>
+          </div>
+          <button onclick="window.location.href=window.location.pathname"
+            class="px-6 py-2.5 rounded-xl bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[11px] tracking-widest uppercase hover:opacity-90 transition-opacity">
+            Sign In
+          </button>
+        </div>`;
+    }
+  } else {
+    // Normal profile tab (no ?floId param) – show your own liked songs
+    await loadPersonProfile(floGlobals.myFloID || window.currentUserFloId);
+    if (typeof originalLoadLikedSongs === 'function') {
+      await originalLoadLikedSongs();
+    }
+  }
+};
+
+// Helper function to go to your own profile
+function goToOwnProfile() {
+  window.location.href = window.location.pathname; // removes query params, reloads app
+}
+window.goToOwnProfile = goToOwnProfile;
