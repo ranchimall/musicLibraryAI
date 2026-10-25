@@ -7,7 +7,7 @@ let marketplaceState = {
   categories: [],
   categorySlug: null,
   categoryId: null,
-  view: "properties", // "properties" | "token" | "financing" | "taskboard"
+  view: "properties", // "properties" | "token" | "taskboard" | "overview" | "config"
   top100Only: false,
   properties: [], // bundle Properties in the selected category
   property: null, // currently open bundle, with components/people/financing attached
@@ -19,6 +19,18 @@ let marketplaceState = {
 
 // Remembers if the current user has special privileges so we don't have to keep checking.
 let isCurrentUserAdmin = null;
+let marketplaceConfigCache = null;
+
+// Notification polling state. The poll only asks for an unread count, not the full inbox, and backs off when the backend is unavailable.
+const NOTIFICATION_POLL_BASE_MS = 60000;
+const NOTIFICATION_POLL_MAX_MS = 300000;
+const NOTIFICATION_POLL_JITTER_MS = 15000;
+let notificationUnreadCount = 0;
+let notificationPollTimer = null;
+let notificationPollInFlight = false;
+let notificationPollBackoffMs = NOTIFICATION_POLL_BASE_MS;
+let notificationLastPollAt = 0;
+let notificationPollStartAttempts = 0;
 
 // Starts up the marketplace view when the user navigates here.
 async function renderMarketplace() {
@@ -35,6 +47,12 @@ async function renderMarketplace() {
   if (isCurrentUserAdmin === null) {
     await checkAndApplyAdminVisibility();
   }
+
+  // Only reveal the tabs/controls once categories and the admin check are done.
+  document.getElementById("marketplace_view_tabs")?.classList.remove("hidden");
+  document
+    .getElementById("marketplace_property_controls")
+    ?.classList.remove("hidden");
 
   highlightMarketplaceViewTab();
   await showMarketplaceView();
@@ -90,6 +108,12 @@ async function checkAndApplyAdminVisibility() {
 
   const usageBtn = document.getElementById("marketplace_show_usage_btn");
   if (usageBtn) usageBtn.classList.toggle("hidden", !isCurrentUserAdmin);
+
+  const inviteBtn = document.getElementById("marketplace_show_invite_btn");
+  if (inviteBtn) inviteBtn.classList.toggle("hidden", !isCurrentUserAdmin);
+
+  const configTab = document.getElementById("marketplace_config_tab_btn");
+  if (configTab) configTab.classList.toggle("hidden", !isCurrentUserAdmin);
 }
 
 function setMarketplaceLoading(isLoading) {
@@ -171,18 +195,21 @@ async function showMarketplaceView() {
   const isToken = view === "token";
   const isTaskboard = view === "taskboard";
   const isOverview = view === "overview";
+  const isConfig = view === "config";
 
   const tokenPanel = document.getElementById("marketplace_token_panel");
   const taskboardPanel = document.getElementById("marketplace_taskboard_panel");
   const propertyDetail = document.getElementById("marketplace_property_detail");
   const overviewPanel = document.getElementById("marketplace_overview_panel");
+  const configPanel = document.getElementById("marketplace_config_panel");
   if (tokenPanel) tokenPanel.classList.add("hidden");
   if (taskboardPanel) taskboardPanel.classList.add("hidden");
   if (propertyDetail) propertyDetail.classList.add("hidden");
   if (overviewPanel) overviewPanel.classList.add("hidden");
+  if (configPanel) configPanel.classList.add("hidden");
 
   // Category browsing controls only make sense on Properties.
-  const hideChrome = isToken || isTaskboard;
+  const hideChrome = isToken || isTaskboard || isOverview || isConfig;
   const categorySelectWrap = document.getElementById("marketplace_category_select_wrap");
   if (categorySelectWrap) categorySelectWrap.classList.toggle("hidden", hideChrome);
   const top100Wrap = document.getElementById("marketplace_top100_toggle_wrap");
@@ -205,6 +232,18 @@ async function showMarketplaceView() {
     tokenPanel.classList.add("hidden");
     overviewPanel.classList.remove("hidden");
     await loadMarketplaceOverview();
+    return;
+  }
+
+  if (isConfig) {
+    loadingState.classList.add("hidden");
+    propertiesList.classList.add("hidden");
+    emptyState.classList.add("hidden");
+    taskboardPanel.classList.add("hidden");
+    tokenPanel.classList.add("hidden");
+    overviewPanel.classList.add("hidden");
+    if (configPanel) configPanel.classList.remove("hidden");
+    await loadMarketplaceConfigPanel();
     return;
   }
 
@@ -345,7 +384,17 @@ async function showMarketplacePropertyDetail(propertyId) {
 }
 
 function renderMarketplacePropertyDetail() {
-  const { property, components, people, tasks } = marketplaceState.property;
+  const {
+    property,
+    components = [],
+    people = [],
+    tasks = [],
+    peopleCount,
+    membershipCount,
+    counts = {},
+    invitations = [],
+    bundleMembers = [],
+  } = marketplaceState.property;
 
   document.getElementById("marketplace_property_name").textContent =
     property.name || "Untitled";
@@ -361,6 +410,40 @@ function renderMarketplacePropertyDetail() {
   document.getElementById("marketplace_stat_consumption").textContent = Number(
     property.consumption || 0,
   ).toFixed(2);
+
+  const uniquePeople =
+    peopleCount ?? new Set(people.map((p) => p.flo_id)).size;
+  const activeMemberships = membershipCount ?? people.length;
+  document.getElementById("marketplace_people_count").textContent = uniquePeople;
+  document.getElementById("marketplace_membership_count").textContent =
+    activeMemberships;
+  document.getElementById("marketplace_pending_invitations_count").textContent =
+    counts.pendingInvitations ?? invitations.length;
+
+  const bundleChip = document.getElementById("marketplace_bundle_chip");
+  if (bundleChip) {
+    bundleChip.classList.toggle("hidden", !property.is_bundle);
+    document.getElementById("marketplace_bundle_count").textContent =
+      bundleMembers.length || counts.bundleMembers || 0;
+  }
+
+  const inviteForm = document.getElementById("marketplace_invite_form");
+  if (inviteForm) inviteForm.classList.add("hidden");
+  const inviteLinkWrap = document.getElementById("marketplace_invite_link_wrap");
+  if (inviteLinkWrap) inviteLinkWrap.classList.add("hidden");
+
+  const adminScorePanel = document.getElementById("marketplace_admin_score_panel");
+  if (adminScorePanel) {
+    adminScorePanel.classList.toggle("hidden", !isCurrentUserAdmin);
+    document.getElementById("marketplace_admin_score_current").textContent =
+      Number(property.admin_score || 0).toFixed(2);
+    document.getElementById("marketplace_admin_score_reason").textContent =
+      property.admin_score_reason || "No admin reason recorded.";
+    document.getElementById("marketplace_admin_score_input").value =
+      Number(property.admin_score || 0);
+    document.getElementById("marketplace_admin_score_reason_input").value =
+      property.admin_score_reason || "";
+  }
 
   const componentsList = document.getElementById("marketplace_components_list");
   if (!components.length) {
@@ -399,14 +482,41 @@ function renderMarketplacePropertyDetail() {
                class="text-outline hover:text-error"><span class="material-symbols-outlined text-sm">close</span></button>`
           : "";
         const roleTag = p.role ? ` (${escapeHtml(p.role)})` : "";
+        const partTag = p.part
+          ? `<span class="ml-2 px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] uppercase tracking-widest text-outline">${escapeHtml(p.part)}</span>`
+          : "";
         return `
           <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
-            <span>${escapeHtml(p.name || truncateFloId(p.flo_id))}${roleTag} — ${escapeHtml(p.work_profile || "")}</span>
+            <span>${escapeHtml(p.name || truncateFloId(p.flo_id))}${roleTag} — ${escapeHtml(p.work_profile || "")}${partTag}</span>
             ${removeBtn}
           </div>`;
       })
       .join("");
   }
+
+  const bundlePanel = document.getElementById("marketplace_bundle_members_panel");
+  const bundleList = document.getElementById("marketplace_bundle_members_list");
+  if (bundlePanel && bundleList) {
+    bundlePanel.classList.toggle("hidden", !property.is_bundle);
+    document.getElementById("marketplace_bundle_members_count").textContent =
+      bundleMembers.length;
+    bundleList.innerHTML = bundleMembers.length
+      ? bundleMembers
+          .map(
+            (member) => `
+              <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+                <button onclick="showMarketplacePropertyDetail(${member.id})"
+                  class="text-left text-primary-fixed-dim hover:underline truncate">
+                  ${escapeHtml(member.name || `Property #${member.id}`)}
+                </button>
+                <span class="text-outline">${Number(member.consumption || 0).toFixed(2)} consumption</span>
+              </div>`,
+          )
+          .join("")
+      : `<div class="font-code-sm text-xs text-outline">No bundle members recorded.</div>`;
+  }
+
+  renderMarketplaceInvitations(invitations);
 
   renderMarketplaceFinanceSection(property.id);
 
@@ -487,6 +597,343 @@ function renderMarketplacePropertyDetail() {
     }
   }
 }
+
+function formatMarketplaceInvitationDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function renderMarketplaceInvitations(invitations = []) {
+  const list = document.getElementById("marketplace_invitations_list");
+  if (!list) return;
+
+  if (!invitations.length) {
+    list.innerHTML = `<div class="font-code-sm text-xs text-outline">No pending invitations.</div>`;
+    return;
+  }
+
+  list.innerHTML = invitations
+    .map((invitation) => {
+      const revokeBtn = isCurrentUserAdmin
+        ? `<button onclick="handleMarketplaceRevokeInvitation(${invitation.id})" title="Revoke"
+             class="text-outline hover:text-error"><span class="material-symbols-outlined text-sm">close</span></button>`
+        : "";
+      const resendBtn =
+        isCurrentUserAdmin && invitation.status === "pending"
+          ? `<button onclick="handleMarketplaceResendInvitation(${invitation.id})" title="Resend / new link"
+               class="text-outline hover:text-primary-fixed-dim"><span class="material-symbols-outlined text-sm">forward_to_inbox</span></button>`
+          : "";
+      const statusClass =
+        invitation.status === "pending"
+          ? "bg-yellow-400/10 text-yellow-400"
+          : invitation.status === "accepted"
+            ? "bg-green-400/10 text-green-400"
+            : "bg-white/5 text-outline";
+      return `
+        <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+          <span class="min-w-0 truncate">
+            ${escapeHtml(invitation.invitee_name || truncateFloId(invitation.invitee_flo_id))}
+            <span class="text-outline"> · ${escapeHtml(invitation.part || "people")} / ${escapeHtml(invitation.role || "")}</span>
+          </span>
+          <span class="flex items-center gap-2 shrink-0">
+            <span class="font-label-caps text-[9px] uppercase tracking-widest px-2 py-0.5 rounded ${statusClass}">
+              ${escapeHtml(invitation.status || "pending")}
+            </span>
+            <span class="text-outline text-[10px]">${formatMarketplaceInvitationDate(invitation.expires_at)}</span>
+            ${resendBtn}
+            ${revokeBtn}
+          </span>
+        </div>`;
+    })
+    .join("");
+}
+
+function toggleMarketplaceInviteForm() {
+  const form = document.getElementById("marketplace_invite_form");
+  if (!form) return;
+  form.classList.toggle("hidden");
+}
+
+function handleMarketplaceInvitePartChange() {
+  const part = document.getElementById("marketplace_invite_part")?.value;
+  const roleInput = document.getElementById("marketplace_invite_role");
+  if (!roleInput) return;
+  const defaults = {
+    people: "contributor",
+    creative: "creative",
+    finance: "finance",
+    marketing: "marketing",
+  };
+  roleInput.placeholder = defaults[part] || "e.g. lyrics, producer";
+}
+
+async function handleMarketplaceCreateInvitation() {
+  if (!marketplaceState.property?.property?.id) return;
+  const inviteeFloId = document
+    .getElementById("marketplace_invite_floid")
+    ?.value.trim();
+  const part = document.getElementById("marketplace_invite_part")?.value;
+  const role = document.getElementById("marketplace_invite_role")?.value.trim();
+  const expiresInDays = Number(
+    document.getElementById("marketplace_invite_expiry")?.value || 7,
+  );
+
+  if (!inviteeFloId) {
+    showToast("Enter the invitee's FLO ID.", "error");
+    return;
+  }
+
+  try {
+    const data = await marketplaceCreatePropertyInvitation(
+      marketplaceState.property.property.id,
+      inviteeFloId,
+      part,
+      role,
+      expiresInDays,
+    );
+    const token = data.invitation?.token;
+    if (token) {
+      const url = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+      const linkInput = document.getElementById("marketplace_invite_link");
+      const linkWrap = document.getElementById("marketplace_invite_link_wrap");
+      if (linkInput) linkInput.value = url;
+      if (linkWrap) linkWrap.classList.remove("hidden");
+    }
+    showToast("Invitation created.", "success");
+    document.getElementById("marketplace_invite_floid").value = "";
+    document.getElementById("marketplace_invite_role").value = "";
+    await showMarketplacePropertyDetail(marketplaceState.property.property.id);
+    if (token) {
+      const linkWrap = document.getElementById("marketplace_invite_link_wrap");
+      if (linkWrap) linkWrap.classList.remove("hidden");
+    }
+  } catch (err) {
+    console.error("Failed to create invitation:", err);
+    showToast(err.message || "Failed to create invitation.", "error");
+  }
+}
+
+function copyMarketplaceInviteLink() {
+  const value = document.getElementById("marketplace_invite_link")?.value;
+  if (!value) return;
+  navigator.clipboard
+    .writeText(value)
+    .then(() => showToast("Invitation link copied.", "success"))
+    .catch(() => showToast("Copy failed.", "error"));
+}
+
+function shareMarketplaceInviteLink(channel) {
+  const link = document.getElementById("marketplace_invite_link")?.value;
+  if (!link) return;
+  const propertyName =
+    marketplaceState.property?.property?.name || "a property";
+  const text = `You are invited to join ${propertyName} on Music Marketplace.`;
+  const subject = `Invitation to join ${propertyName}`;
+
+  if (channel === "email") {
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${text}\n\n${link}`)}`;
+    return;
+  }
+  if (channel === "sms") {
+    window.location.href = `sms:?body=${encodeURIComponent(`${text} ${link}`)}`;
+    return;
+  }
+  if (channel === "native" && navigator.share) {
+    navigator
+      .share({ title: subject, text, url: link })
+      .catch(() => copyMarketplaceInviteLink());
+    return;
+  }
+  copyMarketplaceInviteLink();
+}
+
+async function handleMarketplaceResendInvitation(invitationId) {
+  if (!marketplaceState.property?.property?.id) return;
+  try {
+    const data = await marketplaceResendPropertyInvitation(
+      marketplaceState.property.property.id,
+      invitationId,
+      7,
+    );
+    const token = data.invitation?.token;
+    if (token) {
+      const url = `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(token)}`;
+      document.getElementById("marketplace_invite_link").value = url;
+      document.getElementById("marketplace_invite_link_wrap").classList.remove("hidden");
+    }
+    showToast("Invitation refreshed — new link ready.", "success");
+    await showMarketplacePropertyDetail(marketplaceState.property.property.id);
+    if (token) {
+      document.getElementById("marketplace_invite_link_wrap").classList.remove("hidden");
+    }
+  } catch (err) {
+    console.error("Failed to resend invitation:", err);
+    showToast(err.message || "Failed to resend invitation.", "error");
+  }
+}
+
+async function handleMarketplaceRevokeInvitation(invitationId) {
+  if (!marketplaceState.property?.property?.id) return;
+  try {
+    await marketplaceRevokePropertyInvitation(
+      marketplaceState.property.property.id,
+      invitationId,
+    );
+    showToast("Invitation revoked.", "success");
+    await showMarketplacePropertyDetail(marketplaceState.property.property.id);
+  } catch (err) {
+    console.error("Failed to revoke invitation:", err);
+    showToast(err.message || "Failed to revoke invitation.", "error");
+  }
+}
+
+async function handleMarketplaceSaveAdminScore() {
+  if (!marketplaceState.property?.property?.id) return;
+  const score = document.getElementById("marketplace_admin_score_input")?.value;
+  const reason = document
+    .getElementById("marketplace_admin_score_reason_input")
+    ?.value.trim();
+
+  if (score === "" || !Number.isFinite(Number(score))) {
+    showToast("Enter a numeric admin score.", "error");
+    return;
+  }
+
+  try {
+    await marketplaceSetAdminScore(
+      marketplaceState.property.property.id,
+      Number(score),
+      reason,
+    );
+    showToast("Admin score saved.", "success");
+    await showMarketplacePropertyDetail(marketplaceState.property.property.id);
+  } catch (err) {
+    console.error("Failed to save admin score:", err);
+    showToast(err.message || "Failed to save admin score.", "error");
+  }
+}
+
+// --- Invitation link modal ---------------------------------
+
+let marketplaceInviteToken = null;
+
+async function openMarketplaceInvitation(token) {
+  marketplaceInviteToken = token;
+  const modal = document.getElementById("marketplace_invite_modal");
+  const status = document.getElementById("marketplace_invite_modal_status");
+  const details = document.getElementById("marketplace_invite_modal_details");
+  const actions = document.getElementById("marketplace_invite_modal_actions");
+  if (!modal || !status || !details || !actions) return;
+
+  modal.classList.remove("hidden");
+  status.textContent = "Loading invitation…";
+  details.innerHTML = "";
+  actions.classList.add("hidden");
+  const acceptBtn = document.getElementById("marketplace_invite_accept_btn");
+  const declineBtn = document.getElementById("marketplace_invite_decline_btn");
+  if (acceptBtn) acceptBtn.disabled = false;
+  if (declineBtn) declineBtn.disabled = false;
+
+  try {
+    const data = await marketplaceGetInvitation(token);
+    const invitation = data.invitation;
+    status.textContent =
+      data.canAccept
+        ? "You have been invited to join this property."
+        : `This invitation is ${invitation.status}.`;
+    details.innerHTML = `
+      <div class="font-code-sm text-sm text-on-surface">${escapeHtml(invitation.property_name || `Property #${invitation.property_id}`)}</div>
+      <div class="font-code-sm text-xs text-outline">Part: ${escapeHtml(invitation.part || "people")} · Role: ${escapeHtml(invitation.role || "")}</div>
+      <div class="font-code-sm text-xs text-outline">Invited by: ${escapeHtml(invitation.inviter_flo_id || "—")}</div>
+      <div class="font-code-sm text-xs text-outline">Expires: ${formatMarketplaceInvitationDate(invitation.expires_at)}</div>`;
+    actions.classList.toggle("hidden", !data.canAccept);
+  } catch (err) {
+    console.error("Failed to load invitation:", err);
+    status.textContent = err.message || "Invitation not found.";
+  }
+}
+
+function closeMarketplaceInvitation() {
+  const modal = document.getElementById("marketplace_invite_modal");
+  if (modal) modal.classList.add("hidden");
+  marketplaceInviteToken = null;
+  const url = new URL(window.location.href);
+  if (url.searchParams.has("invite")) {
+    url.searchParams.delete("invite");
+    window.history.replaceState({}, "", url.toString());
+  }
+}
+
+async function handleMarketplaceAcceptInvitation() {
+  if (!marketplaceInviteToken) return;
+  const acceptBtn = document.getElementById("marketplace_invite_accept_btn");
+  const declineBtn = document.getElementById("marketplace_invite_decline_btn");
+  const status = document.getElementById("marketplace_invite_modal_status");
+  if (acceptBtn) acceptBtn.disabled = true;
+  if (declineBtn) declineBtn.disabled = true;
+
+  try {
+    await marketplaceAcceptInvitation(marketplaceInviteToken);
+    if (status) status.textContent = "Invitation accepted. You are now a member.";
+    showToast("Invitation accepted.", "success");
+    refreshNotificationBadge();
+    setTimeout(closeMarketplaceInvitation, 1200);
+  } catch (err) {
+    console.error("Failed to accept invitation:", err);
+    if (status) status.textContent = err.message || "Failed to accept invitation.";
+    if (acceptBtn) acceptBtn.disabled = false;
+    if (declineBtn) declineBtn.disabled = false;
+  }
+}
+
+async function handleMarketplaceDeclineInvitation() {
+  if (!marketplaceInviteToken) return;
+  const acceptBtn = document.getElementById("marketplace_invite_accept_btn");
+  const declineBtn = document.getElementById("marketplace_invite_decline_btn");
+  const status = document.getElementById("marketplace_invite_modal_status");
+  if (acceptBtn) acceptBtn.disabled = true;
+  if (declineBtn) declineBtn.disabled = true;
+
+  try {
+    await marketplaceDeclineInvitation(marketplaceInviteToken);
+    if (status) status.textContent = "Invitation declined.";
+    showToast("Invitation declined.", "success");
+    refreshNotificationBadge();
+    setTimeout(closeMarketplaceInvitation, 1200);
+  } catch (err) {
+    console.error("Failed to decline invitation:", err);
+    if (status) status.textContent = err.message || "Failed to decline invitation.";
+    if (acceptBtn) acceptBtn.disabled = false;
+    if (declineBtn) declineBtn.disabled = false;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const token = new URLSearchParams(window.location.search).get("invite");
+  if (token) openMarketplaceInvitation(token);
+
+  setTimeout(refreshNotificationBadge, 2500);
+  setTimeout(refreshNotificationBadge, 7000);
+  setTimeout(startNotificationPolling, 8000);
+
+  document.addEventListener("click", (event) => {
+    const panel = document.getElementById("notification_panel");
+    if (!panel || panel.classList.contains("hidden")) return;
+    if (
+      panel.contains(event.target) ||
+      event.target.closest("#notification_btn")
+    ) {
+      return;
+    }
+    panel.classList.add("hidden");
+  });
+});
 
 function formatMarketplaceFinanceComponentType(componentType) {
   const labels = {
@@ -1272,7 +1719,7 @@ async function loadMarketplaceSellQueueStats() {
       document.getElementById("sellq_rate").textContent = "0%";
       document.getElementById("sellq_bar").style.width = "0%";
       document.getElementById("sellq_note").textContent =
-        "Payouts start once platform liquidity reaches 10,000 USDAI.";
+        `Payouts start once platform liquidity reaches 10,000 USDAI. Requests expire after ${Number(stats.sellQueuePeriodDays || 7)} days (${Number(stats.expiredCount || 0)} expired).`;
       return;
     }
 
@@ -1292,9 +1739,10 @@ async function loadMarketplaceSellQueueStats() {
     document.getElementById("sellq_bar").style.width =
       `${(releaseFraction * 100).toFixed(1)}%`;
     document.getElementById("sellq_note").textContent =
-      Number(stats.pressureRatio7d) >= 1
-        ? `Buys outnumbered sells ${Number(stats.pressureRatio7d).toFixed(1)}x over the last 7 days - the pool pays out ${ratePct}% of incoming funds to sellers each run.`
-        : `Selling pressure is high right now - payout rate is reduced until buying picks up.`;
+      (Number(stats.pressureRatio7d) >= 1
+        ? `Buys outnumbered sells ${Number(stats.pressureRatio7d).toFixed(1)}x over the last ${Number(stats.pressureWindowDays || 7)} days - the pool pays out ${ratePct}% of incoming funds to sellers each run.`
+        : `Selling pressure is high right now - payout rate is reduced until buying picks up.`) +
+      ` Requests expire after ${Number(stats.sellQueuePeriodDays || 7)} days (${Number(stats.expiredCount || 0)} expired).`;
   } catch (err) {
     console.error("Failed to load sell-queue stats:", err);
     document.getElementById("sellq_note").textContent =
@@ -1554,72 +2002,598 @@ async function handleMarketplaceDeleteUsageEvent(eventId) {
   }
 }
 
+async function loadMarketplaceConfigPanel() {
+  const formulaList = document.getElementById("marketplace_formulas_list");
+  if (formulaList) {
+    formulaList.innerHTML = `<div class="font-code-sm text-xs text-outline">Loading formulas…</div>`;
+  }
+
+  try {
+    const data = await marketplaceGetFormulas();
+    const config = data.config || {};
+    marketplaceConfigCache = config;
+
+    const setValue = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    };
+    setValue("config_people_weight", config.people_weight);
+    setValue("config_task_weight", config.task_weight);
+    setValue("config_top_n_properties", config.top_n_properties);
+    setValue("config_weak_bundle_size", config.weak_bundle_size);
+    setValue("config_sell_queue_period_days", config.sell_queue_period_days);
+    const bundleToggle = document.getElementById("config_weak_bundle_enabled");
+    if (bundleToggle) bundleToggle.checked = !!config.weak_bundle_enabled;
+
+    if (formulaList) {
+      const formulas = data.formulas || {};
+      const labels = {
+        consumption: "Consumption",
+        playsDefinition: "Total plays",
+        likesDefinition: "Total likes",
+        peopleDefinition: "People",
+        tasksDefinition: "Tasks",
+        adminScoreDefinition: "Admin score",
+        basePrice: "Base price",
+        currentPrice: "Current price",
+        scarcity: "Scarcity",
+        utility: "Utility",
+        usageWeights: "Usage event weights",
+        totalConsumption: "Total consumption",
+        topNConfig: "Top N",
+        consumptionShare: "Consumption share",
+        bundle: "Bundle consumption",
+        poolPricePerUnit:
+          formulas.poolPriceStatus === "deferred"
+            ? "Pool price per unit (deferred)"
+            : "Pool price per unit",
+      };
+
+      const usageWeightsText = formulas.usageWeights
+        ? Object.entries(formulas.usageWeights)
+            .map(([type, weight]) => `${type}: ${weight}`)
+            .join(" · ")
+        : "";
+
+      formulaList.innerHTML = Object.entries(labels)
+        .filter(([key]) => formulas[key])
+        .map(([key, label]) => {
+          const value =
+            key === "usageWeights" ? usageWeightsText : formulas[key];
+          return `
+            <div class="border-b border-white/5 py-2">
+              <div class="font-label-caps text-[9px] text-outline uppercase tracking-widest mb-1">${label}</div>
+              <div class="font-code-sm text-[11px] text-on-surface break-words">${escapeHtml(value)}</div>
+            </div>`;
+        })
+        .join("");
+    }
+  } catch (err) {
+    console.error("Failed to load config:", err);
+    if (formulaList) {
+      formulaList.innerHTML = `<div class="font-code-sm text-xs text-outline">Could not load formulas.</div>`;
+    }
+    showToast("Failed to load marketplace config.", "error");
+  }
+}
+
+async function handleMarketplaceSaveConfig() {
+  const original = marketplaceConfigCache || {};
+  const updates = {
+    people_weight: Number(document.getElementById("config_people_weight")?.value),
+    task_weight: Number(document.getElementById("config_task_weight")?.value),
+    top_n_properties: Number(document.getElementById("config_top_n_properties")?.value),
+    weak_bundle_size: Number(document.getElementById("config_weak_bundle_size")?.value),
+    sell_queue_period_days: Number(document.getElementById("config_sell_queue_period_days")?.value),
+    weak_bundle_enabled: !!document.getElementById("config_weak_bundle_enabled")?.checked,
+  };
+
+  const changed = Object.entries(updates).filter(
+    ([key, value]) => String(original[key]) !== String(value),
+  );
+  if (!changed.length) {
+    showToast("No configuration changes.", "info");
+    return;
+  }
+
+  const saveBtn = document.getElementById("marketplace_config_save_btn");
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    for (const [key, value] of changed) {
+      await marketplaceUpdateConfig(key, value);
+    }
+    showToast("Configuration saved.", "success");
+    await loadMarketplaceConfigPanel();
+    const note = document.getElementById("marketplace_config_note");
+    if (note) note.textContent = "Saved. Run the pipeline to apply pricing changes.";
+  } catch (err) {
+    console.error("Failed to save config:", err);
+    showToast(err.message || "Failed to save configuration.", "error");
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function handleMarketplaceRunPipeline() {
+  try {
+    await marketplaceRunPipeline();
+    showToast("Pipeline triggered.", "success");
+    const note = document.getElementById("marketplace_config_note");
+    if (note) note.textContent = "Pipeline triggered — refresh in a few minutes.";
+  } catch (err) {
+    console.error("Failed to run pipeline:", err);
+    showToast(err.message || "Failed to run pipeline.", "error");
+  }
+}
+
+function updateNotificationBadge(count) {
+  const badge = document.getElementById("notification_badge");
+  if (!badge) return;
+  const pending = Number(count) || 0;
+  notificationUnreadCount = pending;
+  badge.textContent = pending > 99 ? "99+" : String(pending);
+  badge.classList.toggle("hidden", pending <= 0);
+}
+
+function renderNotificationList(invitations = []) {
+  const list = document.getElementById("notification_list");
+  if (!list) return;
+
+  const pending = invitations.filter(
+    (invitation) => invitation.status === "pending",
+  );
+  if (!pending.length) {
+    list.innerHTML = `<div class="font-code-sm text-xs text-outline">No pending invitations.</div>`;
+    return;
+  }
+
+  list.innerHTML = pending
+    .map(
+      (invitation) => `
+        <div class="flex items-start justify-between gap-2 border-b border-white/5 py-2">
+          <div class="min-w-0">
+            <div class="font-code-sm text-xs text-on-surface truncate">
+              ${invitation.is_unread ? `<span class="inline-block w-1.5 h-1.5 rounded-full bg-primary-fixed-dim mr-1"></span>` : ""}
+              ${escapeHtml(invitation.property_name || `Property #${invitation.property_id}`)}
+            </div>
+            <div class="font-code-sm text-[10px] text-outline">${escapeHtml(invitation.part || "people")} / ${escapeHtml(invitation.role || "")} · expires ${formatMarketplaceInvitationDate(invitation.expires_at)}</div>
+          </div>
+          <button onclick="openNotificationInvitation('${escapeHtml(invitation.token)}')"
+            class="shrink-0 font-label-caps text-[9px] uppercase tracking-widest text-primary-fixed-dim hover:underline">Open</button>
+        </div>`,
+    )
+    .join("");
+}
+
+function openNotificationInvitation(token) {
+  const panel = document.getElementById("notification_panel");
+  if (panel) panel.classList.add("hidden");
+  openMarketplaceInvitation(token);
+}
+
+function toggleNotificationPanel() {
+  const panel = document.getElementById("notification_panel");
+  if (!panel) return;
+  panel.classList.toggle("hidden");
+  if (!panel.classList.contains("hidden")) {
+    refreshNotificationBadge(true);
+  }
+}
+
+function notificationPanelIsOpen() {
+  const panel = document.getElementById("notification_panel");
+  return !!panel && !panel.classList.contains("hidden");
+}
+
+function scheduleNotificationPoll(delayMs) {
+  if (notificationPollTimer) {
+    clearTimeout(notificationPollTimer);
+    notificationPollTimer = null;
+  }
+  if (document.hidden || !floGlobals.myFloID) return;
+
+  const jitter = Math.floor(Math.random() * NOTIFICATION_POLL_JITTER_MS);
+  const delay =
+    delayMs === undefined
+      ? notificationPollBackoffMs + jitter
+      : delayMs;
+  notificationPollTimer = setTimeout(pollNotificationUnread, delay);
+}
+
+async function pollNotificationUnread() {
+  notificationPollTimer = null;
+  if (document.hidden || !floGlobals.myFloID || notificationPollInFlight) {
+    scheduleNotificationPoll();
+    return;
+  }
+
+  notificationPollInFlight = true;
+  try {
+    const data = await marketplaceGetUnreadInvitationCount();
+    const unread = Number(data.unreadCount || 0);
+    const changed = unread !== notificationUnreadCount;
+    updateNotificationBadge(unread);
+    notificationPollBackoffMs = NOTIFICATION_POLL_BASE_MS;
+    notificationLastPollAt = Date.now();
+
+    // Only fetch the full inbox when the panel is open and something changed.
+    if (changed && notificationPanelIsOpen()) {
+      const inbox = await marketplaceGetMyInvitations();
+      renderNotificationList(inbox.invitations || []);
+    }
+  } catch (err) {
+    notificationPollBackoffMs = Math.min(
+      notificationPollBackoffMs * 2,
+      NOTIFICATION_POLL_MAX_MS,
+    );
+    console.error("Notification poll failed; backing off:", err);
+  } finally {
+    notificationPollInFlight = false;
+    scheduleNotificationPoll(notificationPollBackoffMs);
+  }
+}
+
+function startNotificationPolling() {
+  if (!floGlobals.myFloID) {
+    if (notificationPollStartAttempts < 12) {
+      notificationPollStartAttempts += 1;
+      setTimeout(startNotificationPolling, 5000);
+    }
+    return;
+  }
+  notificationPollStartAttempts = 0;
+  notificationPollBackoffMs = NOTIFICATION_POLL_BASE_MS;
+  scheduleNotificationPoll(0);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (notificationPollTimer) {
+      clearTimeout(notificationPollTimer);
+      notificationPollTimer = null;
+    }
+    return;
+  }
+
+  if (!floGlobals.myFloID) return;
+  const stale = Date.now() - notificationLastPollAt > NOTIFICATION_POLL_BASE_MS;
+  scheduleNotificationPoll(stale ? 0 : undefined);
+});
+
+async function refreshNotificationBadge(markRead = false) {
+  if (!floGlobals.myFloID) {
+    updateNotificationBadge(0);
+    renderNotificationList([]);
+    return;
+  }
+  try {
+    const data = await marketplaceGetMyInvitations();
+    const invitations = data.invitations || [];
+    const unread = Number(data.unreadCount ?? 0);
+    updateNotificationBadge(unread);
+    renderNotificationList(invitations);
+    notificationPollBackoffMs = NOTIFICATION_POLL_BASE_MS;
+    notificationLastPollAt = Date.now();
+
+    if (markRead && unread > 0) {
+      await marketplaceMarkInvitationsRead();
+      updateNotificationBadge(0);
+      renderNotificationList(
+        invitations.map((invitation) => ({
+          ...invitation,
+          is_unread: false,
+        })),
+      );
+    }
+    scheduleNotificationPoll();
+  } catch (err) {
+    console.error("Failed to refresh invitation notifications:", err);
+  }
+}
+
+async function loadMarketplaceInvitationInbox() {
+  const list = document.getElementById("overview_my_invites_list");
+  const count = document.getElementById("overview_my_invites_count");
+  if (!list) return;
+
+  if (!floGlobals.myFloID) {
+    if (count) count.textContent = "0";
+    list.innerHTML = `<div class="font-code-sm text-xs text-outline">Sign in to see invitations addressed to you.</div>`;
+    return;
+  }
+
+  try {
+    const data = await marketplaceGetMyInvitations();
+    const invitations = data.invitations || [];
+    const unread = Number(
+      data.unreadCount ??
+        invitations.filter((invitation) => invitation.is_unread).length,
+    );
+    updateNotificationBadge(unread);
+    renderNotificationList(invitations);
+    if (unread > 0) {
+      try {
+        await marketplaceMarkInvitationsRead();
+        updateNotificationBadge(0);
+      } catch (markErr) {
+        console.error("Failed to mark invitations read:", markErr);
+      }
+    }
+    if (count) count.textContent = String(invitations.length);
+    if (!invitations.length) {
+      list.innerHTML = `<div class="font-code-sm text-xs text-outline">No invitations addressed to you.</div>`;
+      return;
+    }
+
+    const statusClass = (status) =>
+      status === "pending"
+        ? "bg-yellow-400/10 text-yellow-400"
+        : status === "accepted"
+          ? "bg-green-400/10 text-green-400"
+          : "bg-white/5 text-outline";
+
+    list.innerHTML = invitations
+      .map((invitation) => {
+        const openBtn =
+          invitation.status === "pending" && invitation.token
+            ? `<button onclick="openMarketplaceInvitation('${escapeHtml(invitation.token)}')"
+                 class="shrink-0 font-label-caps text-[9px] uppercase tracking-widest text-primary-fixed-dim hover:underline">Open</button>`
+            : "";
+        return `
+          <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+            <div class="min-w-0">
+              <div class="font-code-sm text-xs text-on-surface truncate">${escapeHtml(invitation.property_name || `Property #${invitation.property_id}`)}</div>
+              <div class="font-code-sm text-[10px] text-outline">${escapeHtml(invitation.part || "people")} / ${escapeHtml(invitation.role || "")} · ${formatMarketplaceInvitationDate(invitation.expires_at)}</div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="font-label-caps text-[9px] uppercase tracking-widest px-2 py-0.5 rounded ${statusClass(invitation.status)}">${escapeHtml(invitation.status)}</span>
+              ${openBtn}
+            </div>
+          </div>`;
+      })
+      .join("");
+  } catch (err) {
+    console.error("Failed to load invitation inbox:", err);
+    if (count) count.textContent = "0";
+    list.innerHTML = `<div class="font-code-sm text-xs text-outline">Sign in to see invitations addressed to you.</div>`;
+  }
+}
+
 async function loadMarketplaceOverview() {
   try {
     const data = await marketplaceGetOverview();
+    const counts = data.counts || {};
+    const uniquePeople = data.uniquePeople || data.people || [];
+    const creative = data.creative || [];
+    const finance = data.finance || [];
+    const financeAllocations = data.financeAllocations || [];
+    const payouts = data.payouts || [];
+    const royaltySplits = data.royaltySplits || [];
+    const marketing = data.marketing || [];
+    const tasks = data.tasks || [];
+    const invitationCounts = data.invitations || {};
 
-    // Update Counts
-    document.getElementById("overview_people_count").textContent = data.people.length;
-    document.getElementById("overview_finance_count").textContent = data.finance.length;
-    document.getElementById("overview_marketing_count").textContent = data.marketing.length;
+    const setText = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+    const empty = (text) =>
+      `<div class="font-code-sm text-xs text-outline">${escapeHtml(text)}</div>`;
 
-    // Render People
+    const uniqueTasks = [...new Map(tasks.map((task) => [task.id, task])).values()];
+
+    // Summary cards + section counts.
+    setText("overview_unique_people_count", counts.uniquePeople ?? uniquePeople.length);
+    setText("overview_membership_count", counts.memberships ?? 0);
+    setText("overview_property_count", counts.properties ?? 0);
+    setText("overview_task_count", counts.tasks ?? uniqueTasks.length);
+    setText("overview_payout_count", counts.payouts ?? payouts.length);
+    setText("overview_invite_count", counts.pendingInvitations ?? invitationCounts.pending ?? 0);
+    setText("overview_people_count", counts.uniquePeople ?? uniquePeople.length);
+    setText("overview_creative_count", counts.creativeComponents ?? creative.length);
+    setText("overview_finance_count", counts.financeComponents ?? finance.length);
+    setText("overview_finance_allocations_count", counts.financeAllocations ?? financeAllocations.length);
+    setText("overview_payouts_count", counts.payouts ?? payouts.length);
+    setText("overview_royalty_count", counts.royaltySplits ?? royaltySplits.length);
+    setText("overview_marketing_count", counts.marketingComponents ?? marketing.length);
+    setText("overview_tasks_count", counts.tasks ?? uniqueTasks.length);
+
+    const inviteBreakdown = Object.entries(invitationCounts)
+      .map(([status, count]) => `${status}: ${count}`)
+      .join(" · ");
+    setText("overview_invite_breakdown", inviteBreakdown || "—");
+
+    // People (unique, not membership rows).
     const peopleList = document.getElementById("overview_people_list");
-    if (!data.people.length) {
-      peopleList.innerHTML = `<div class="font-code-sm text-xs text-outline">No people registered yet.</div>`;
+    if (!uniquePeople.length) {
+      peopleList.innerHTML = empty("No people registered yet.");
     } else {
-      peopleList.innerHTML = data.people.map((person) => {
-        const propertyInfo = person.property_id
-          ? ` <span class="ml-2 px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] text-primary-fixed-dim">${escapeHtml(person.property_name || 'Property #' + person.property_id)}${person.role ? ' · ' + escapeHtml(person.role) : ''}</span>`
-          : "";
-        return `
-          <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
-            <div class="min-w-0">
-              <span class="font-code-sm text-xs text-on-surface">${escapeHtml(person.name || truncateFloId(person.flo_id))}</span>
-              <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(person.work_profile || '')}</span>
-              ${propertyInfo}
-            </div>
-          </div>
-        `;
-      }).join("");
+      peopleList.innerHTML = uniquePeople
+        .map((person) => {
+          const propertyCount = Number(person.property_count || 0);
+          const membershipCount = Number(person.membership_count || 0);
+          return `
+            <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+              <div class="min-w-0">
+                <span class="font-code-sm text-xs text-on-surface">${escapeHtml(person.name || truncateFloId(person.flo_id))}</span>
+                <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(person.work_profile || "")}</span>
+              </div>
+              <span class="font-code-sm text-[10px] text-primary-fixed-dim shrink-0">${propertyCount} properties · ${membershipCount} roles</span>
+            </div>`;
+        })
+        .join("");
     }
 
-    // Render Finance
+    // Creative parts: lyrics / music / vocals.
+    const creativeBreakdown = document.getElementById("overview_creative_breakdown");
+    if (creativeBreakdown) {
+      const byType = counts.creativeByType || {};
+      creativeBreakdown.innerHTML = ["lyrics", "music", "vocals"]
+        .map(
+          (type) =>
+            `<span class="font-code-sm text-[10px] text-outline px-2 py-1 rounded bg-white/5 border border-white/10">${type}: ${Number(byType[type] || 0)}</span>`,
+        )
+        .join("");
+    }
+    const creativeList = document.getElementById("overview_creative_list");
+    if (!creative.length) {
+      creativeList.innerHTML = empty("No creative components yet.");
+    } else {
+      creativeList.innerHTML = creative
+        .map((component) => {
+          const title = component.metadata?.title || component.track_id || "N/A";
+          const artist = component.metadata?.artist || "";
+          return `
+            <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+              <div class="min-w-0">
+                <span class="font-code-sm text-xs text-on-surface">${escapeHtml(component.component_type || "component")} — ${escapeHtml(title)}</span>
+                <span class="font-code-sm text-[10px] text-outline ml-2">${artist ? `${escapeHtml(artist)} · ` : ""}${escapeHtml(component.property_name || "Unassigned")}</span>
+              </div>
+            </div>`;
+        })
+        .join("");
+    }
+
+    // Finance components.
     const financeList = document.getElementById("overview_finance_list");
-    if (!data.finance.length) {
-      financeList.innerHTML = `<div class="font-code-sm text-xs text-outline">No finance components yet.</div>`;
+    if (!finance.length) {
+      financeList.innerHTML = empty("No finance components yet.");
     } else {
-      financeList.innerHTML = data.finance.map((fin) => {
-        const amount = fin.amount ? `${Number(fin.amount).toFixed(2)} ${escapeHtml(fin.currency || 'USDAI')}` : 'Unpriced';
-        return `
-          <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
-            <div class="min-w-0">
-              <span class="font-code-sm text-xs text-on-surface">${escapeHtml(fin.title || 'Untitled')}</span>
-              <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(fin.property_name || 'Unassigned')}</span>
-            </div>
-            <span class="font-code-sm text-[11px] text-primary-fixed-dim">${amount}</span>
-          </div>
-        `;
-      }).join("");
+      financeList.innerHTML = finance
+        .map((fin) => {
+          const amount = fin.amount
+            ? `${Number(fin.amount).toFixed(2)} ${escapeHtml(fin.currency || "USDAI")}`
+            : "Unpriced";
+          return `
+            <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+              <div class="min-w-0">
+                <span class="font-code-sm text-xs text-on-surface">${escapeHtml(fin.title || "Untitled")}</span>
+                <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(fin.property_name || "Unassigned")}</span>
+              </div>
+              <span class="font-code-sm text-[11px] text-primary-fixed-dim">${amount}</span>
+            </div>`;
+        })
+        .join("");
     }
 
-    // Render Marketing
+    // Allocations.
+    const allocationsList = document.getElementById("overview_finance_allocations_list");
+    if (!financeAllocations.length) {
+      allocationsList.innerHTML = empty("No finance allocations yet.");
+    } else {
+      allocationsList.innerHTML = financeAllocations
+        .map(
+          (allocation) => `
+            <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+              <span class="truncate">${escapeHtml(allocation.property_name || `Property #${allocation.property_id}`)} · ${escapeHtml(allocation.category || "general")}</span>
+              <span class="text-primary-fixed-dim">${formatMarketplaceFinancePercent(allocation.allocation_pct)}</span>
+            </div>`,
+        )
+        .join("");
+    }
+
+    // Payouts.
+    const payoutsList = document.getElementById("overview_payouts_list");
+    if (!payouts.length) {
+      payoutsList.innerHTML = empty("No payouts yet.");
+    } else {
+      payoutsList.innerHTML = payouts
+        .map(
+          (payout) => `
+            <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+              <span class="truncate">${escapeHtml(payout.property_name || `Property #${payout.property_id}`)} · ${escapeHtml(truncateFloId(payout.recipient_flo_id))}</span>
+              <span class="text-primary-fixed-dim">${Number(payout.amount || 0).toFixed(2)} · ${escapeHtml(payout.status || "pending")}</span>
+            </div>`,
+        )
+        .join("");
+    }
+
+    // Royalty splits.
+    const royaltyList = document.getElementById("overview_royalty_list");
+    if (!royaltySplits.length) {
+      royaltyList.innerHTML = empty("No royalty splits yet.");
+    } else {
+      royaltyList.innerHTML = royaltySplits
+        .map(
+          (split) => `
+            <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+              <span class="truncate">${escapeHtml(split.property_name || "Unassigned")} · ${escapeHtml(split.finance_title || "Finance")} · ${escapeHtml(truncateFloId(split.recipient_flo_id))}</span>
+              <span class="text-primary-fixed-dim">${formatMarketplaceFinancePercent(split.share_percentage)}</span>
+            </div>`,
+        )
+        .join("");
+    }
+
+    // Marketing.
     const marketingList = document.getElementById("overview_marketing_list");
-    if (!data.marketing.length) {
-      marketingList.innerHTML = `<div class="font-code-sm text-xs text-outline">No marketing components yet.</div>`;
+    if (!marketing.length) {
+      marketingList.innerHTML = empty("No marketing components yet.");
     } else {
-      marketingList.innerHTML = data.marketing.map((mark) => {
-        return `
-          <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
-            <div class="min-w-0">
-              <span class="font-code-sm text-xs text-on-surface">Track: ${escapeHtml(mark.track_id || 'N/A')}</span>
-              <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(mark.property_name || 'Unassigned')}</span>
-            </div>
-          </div>
-        `;
-      }).join("");
+      marketingList.innerHTML = marketing
+        .map((mark) => {
+          const title = mark.metadata?.title || mark.track_id || "N/A";
+          const artist = mark.metadata?.artist || "";
+          return `
+            <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+              <div class="min-w-0">
+                <span class="font-code-sm text-xs text-on-surface">Marketing — ${escapeHtml(title)}</span>
+                <span class="font-code-sm text-[10px] text-outline ml-2">${artist ? `${escapeHtml(artist)} · ` : ""}${escapeHtml(mark.property_name || "Unassigned")}</span>
+              </div>
+            </div>`;
+        })
+        .join("");
     }
 
+    // Tasks.
+    const tasksList = document.getElementById("overview_tasks_list");
+    if (!uniqueTasks.length) {
+      tasksList.innerHTML = empty("No tasks yet.");
+    } else {
+      tasksList.innerHTML = uniqueTasks
+        .map((task) => {
+          const brief = escapeHtml((task.brief || `Task #${task.id}`).slice(0, 90));
+          const statusClass =
+            task.status === "completed"
+              ? "bg-green-400/10 text-green-400"
+              : "bg-primary-fixed-dim/10 text-primary-fixed-dim";
+          return `
+            <div class="flex items-center justify-between gap-2 border-b border-white/5 py-2">
+              <div class="min-w-0">
+                <span class="font-code-sm text-xs text-on-surface">${brief}</span>
+                <span class="font-code-sm text-[10px] text-outline ml-2">${escapeHtml(task.property_name || "Unassigned")}</span>
+              </div>
+              <span class="font-label-caps text-[9px] uppercase tracking-widest px-2 py-0.5 rounded ${statusClass}">${escapeHtml(task.status || "open")}</span>
+            </div>`;
+        })
+        .join("");
+    }
+
+    // Consumption shares are fetched separately so a backend hiccup doesn't blank out the rest of the overview.
+    try {
+      const shares = await marketplaceGetConsumptionShares();
+      setText("overview_consumption_total", Number(shares.totalConsumption || 0).toFixed(2));
+      setText("overview_consumption_count", shares.properties?.length || 0);
+      const consumptionList = document.getElementById("overview_consumption_list");
+      if (!shares.properties?.length) {
+        consumptionList.innerHTML = empty("No Top-N consumption yet.");
+      } else {
+        consumptionList.innerHTML = shares.properties
+          .slice(0, 12)
+          .map(
+            (property) => `
+              <div class="flex items-center justify-between gap-2 font-code-sm text-xs text-on-surface py-1">
+                <span class="truncate">${escapeHtml(property.name || `Property #${property.id}`)}${property.isBundle ? " · bundle" : ""}</span>
+                <span class="text-primary-fixed-dim">${Number(property.consumption || 0).toFixed(2)} · ${(Number(property.consumptionSharePct || 0)).toFixed(1)}%</span>
+              </div>`,
+          )
+          .join("");
+      }
+    } catch (shareErr) {
+      console.error("Failed to load consumption shares:", shareErr);
+      setText("overview_consumption_total", "—");
+    }
+
+    await loadMarketplaceInvitationInbox();
   } catch (err) {
     console.error("Failed to load overview:", err);
     showToast("Failed to load overview.", "error");

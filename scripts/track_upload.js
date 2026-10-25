@@ -50,7 +50,16 @@ function extractSunoData(html, targetUrl) {
     ? imageMatch[1]
     : `https://cdn2.suno.ai/image_large_${uuid}.jpeg`;
 
-  let audioUrl = `https://cdn1.suno.ai/${uuid}.mp3`;
+  const decodedHtml = html.replace(/\\"/g, '"').replace(/\\\//g, "/");
+  const videoMatch = decodedHtml.match(/"video_url":"(https:\/\/[^"]+?\.mp4)"/i);
+  const mediaMatches = [
+    ...decodedHtml.matchAll(/"url":"(https:\/\/[^"]+?\.(?:m4a|mp3|mp4))"/gi),
+  ].map((match) => match[1]);
+  const videoUrl = videoMatch ? videoMatch[1] : "";
+  const audioUrl =
+    mediaMatches.find((url) => /\.m4a(\?|$)/i.test(url)) ||
+    videoUrl ||
+    `https://cdn1.suno.ai/${uuid}.mp3`;
 
   let playCount = 0;
   const playCountMatch = html.match(/play_count\\?["']?\s*:\s*(\d+)/i);
@@ -62,39 +71,39 @@ function extractSunoData(html, targetUrl) {
   if (hasVocalMatch) hasVocals = hasVocalMatch[1] === "true";
 
   let lyrics = "";
-  const promptMatch = html.match(
-    /\\?"prompt\\?"\s*:\s*\\?"([\s\S]*?)(?<!\\)\\?"/i,
+  const getTextareaLyrics = () => {
+    const textareas = [
+      ...html.matchAll(/<textarea[^>]*>([\s\S]*?)<\/textarea>/gi),
+    ]
+      .map((match) => match[1])
+      .sort((a, b) => b.length - a.length);
+    if (!textareas[0]) return "";
+    return textareas[0]
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, " ")
+      .trim();
+  };
+
+  const metadataPromptMatch = decodedHtml.match(
+    /"metadata"\s*:\s*\{[\s\S]*?"prompt"\s*:\s*"((?:\\.|[^"\\])*)"/i,
   );
-  if (promptMatch) {
-    lyrics = promptMatch[1]
+
+  if (metadataPromptMatch) {
+    lyrics = metadataPromptMatch[1]
       .replace(/\\\\n/g, "\n")
       .replace(/\\n/g, "\n")
       .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
       .trim();
+  }
 
-    if (/^\$[a-zA-Z0-9]+$/.test(lyrics)) {
-      const ref = lyrics.slice(1);
-      const pushBlocks =
-        html.match(/self\.__next_f\.push\(\[[\s\S]*?\]\);?/g) || [];
-      const refBlock = pushBlocks.find((block) => block.includes(`${ref}:`));
-
-      if (refBlock) {
-        const match = refBlock.match(
-          new RegExp(`${ref}:[^,]*,([\\s\\S]*?)"\\]\\)`),
-        );
-        if (match) {
-          lyrics = match[1]
-            .replace(/^[A-Za-z0-9]+:[^,]+,/, "")
-            .replace(/^[A-Za-z0-9]+,/, "")
-            .replace(/\\\\n/g, "\n")
-            .replace(/\\n/g, "\n")
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, "\\")
-            .replace(/\\?"?\]\);?$/, "")
-            .trim();
-        }
-      }
-    }
+  // Newer pages store the prompt as an RSC reference like "$cd". The editable textarea contains the actual lyrics, so prefer it in that case.
+  if (!lyrics || /^\$[a-zA-Z0-9]+$/.test(lyrics)) {
+    lyrics = getTextareaLyrics();
   }
 
   let artist = "Unknown";
@@ -114,6 +123,7 @@ function extractSunoData(html, targetUrl) {
     artist,
     image,
     audioUrl,
+    videoUrl,
     playCount,
     lyrics,
     hasVocals,
@@ -219,6 +229,24 @@ async function extractFlowMusicData(html, targetUrl) {
   let playCount = 0;
   let lyrics = "";
 
+  const decodedFlowHtml = html.replace(/\\"/g, '"').replace(/\\\//g, "/");
+
+  const flowLyricsMatch = decodedFlowHtml.match(
+    /"lyrics"\s*:\s*\{\s*"status"\s*:\s*"[^"]*"\s*,\s*"value"\s*:\s*\{[\s\S]*?"text"\s*:\s*"((?:\\.|[^"\\])*)"/i,
+  );
+
+  if (flowLyricsMatch) {
+    try {
+      lyrics = JSON.parse('"' + flowLyricsMatch[1] + '"');
+    } catch {
+      lyrics = flowLyricsMatch[1]
+        .replace(/\\r\\n/g, "\n")
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/g, '"');
+    }
+    lyrics = lyrics.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  }
+
   // ---------------------------------------------------------
   // 6. Grab what we can directly from the page
   // ---------------------------------------------------------
@@ -231,16 +259,18 @@ async function extractFlowMusicData(html, targetUrl) {
     playCount = parseInt(playCountMatch[1], 10);
   }
 
-  const lyricsMatch = html.match(
-    /["']lyrics["']\s*:\s*["']((?:[^"'\\]|\\.)*)["']/i,
-  );
+  if (!lyrics) {
+    const lyricsMatch = html.match(
+      /["']lyrics["']\s*:\s*["']((?:[^"'\\]|\\.)*)["']/i,
+    );
 
-  if (lyricsMatch) {
-    lyrics = lyricsMatch[1]
-      .replace(/\\n/g, "\n")
-      .replace(/\\"/g, '"')
-      .replace(/\\r/g, "")
-      .trim();
+    if (lyricsMatch) {
+      lyrics = lyricsMatch[1]
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/g, '"')
+        .replace(/\\r/g, "")
+        .trim();
+    }
   }
 
   // ---------------------------------------------------------
@@ -417,23 +447,16 @@ async function fetchTrackData() {
     const previewImage = document.getElementById("preview_image");
     const previewVideo = document.getElementById("preview_video");
 
-    if (currentUploadTrackData.videoUrl) {
-      previewImage.classList.add("hidden");
-
-      previewVideo.src = currentUploadTrackData.videoUrl;
-      previewVideo.classList.remove("hidden");
-
-      previewVideo.load();
-      previewVideo.play().catch(() => {});
-    } else {
+    // Always show the cover in the upload preview 
+    if (previewVideo.src) {
       previewVideo.pause();
       previewVideo.removeAttribute("src");
       previewVideo.load();
-      previewVideo.classList.add("hidden");
-
-      previewImage.src = currentUploadTrackData.image;
-      previewImage.classList.remove("hidden");
     }
+    previewVideo.classList.add("hidden");
+
+    previewImage.src = currentUploadTrackData.image;
+    previewImage.classList.remove("hidden");
     document.getElementById("preview_plays").textContent =
       currentUploadTrackData.playCount.toLocaleString();
     document.getElementById("preview_lyrics_status").textContent =

@@ -134,7 +134,6 @@
     <script src="https://cdn.jsdelivr.net/npm/tronweb@5.3.2/dist/TronWeb.js"></script>
     <script src="https://unpkg.com/@polkadot/util@12.6.2/bundle-polkadot-util.js"></script>
     <script src="https://unpkg.com/@polkadot/util-crypto@12.6.2/bundle-polkadot-util-crypto.js"></script>
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/void-57/cardano-wallet-test@main/cardano-crypto.iife.js"></script>
     <script src="https://unpkg.com/uhtml@3.0.1/es.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
@@ -566,6 +565,27 @@
         </div>
     </div>
 
+    <!-- Property invitation preview / accept-decline modal -->
+    <div id="marketplace_invite_modal"
+        class="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 hidden backdrop-blur-md">
+        <div class="w-full max-w-md bg-surface p-6 md:p-8 rounded-xl border border-white/10 shadow-2xl relative mx-4 md:mx-0">
+            <button onclick="closeMarketplaceInvitation()"
+                class="absolute top-4 right-4 text-white hover:text-primary-fixed-dim bg-transparent border-none">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest mb-2">Property
+                invitation</h3>
+            <p id="marketplace_invite_modal_status" class="font-code-sm text-xs text-outline mb-4">Loading invitation…</p>
+            <div id="marketplace_invite_modal_details" class="space-y-xs mb-4"></div>
+            <div id="marketplace_invite_modal_actions" class="flex flex-wrap gap-sm">
+                <button id="marketplace_invite_accept_btn" onclick="handleMarketplaceAcceptInvitation()"
+                    class="flex-1 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Accept</button>
+                <button id="marketplace_invite_decline_btn" onclick="handleMarketplaceDeclineInvitation()"
+                    class="px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Decline</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Small loading screen while payment is sending -->
     <div id="marketplace_buy_loading"
         class="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 hidden backdrop-blur-md p-4">
@@ -674,19 +694,6 @@
                         onclick="routeTo('page_upload')">Upload</a>
                 </nav>
                 <div class="flex items-center gap-3 sm:gap-md shrink-0">
-                    <button
-                        class="active:scale-95 transition-transform text-on-surface-variant hover:text-primary-fixed-dim hidden sm:block">
-                        <span class="material-symbols-outlined">search</span>
-                    </button>
-                    <button
-                        class="active:scale-95 transition-transform text-on-surface-variant hover:text-primary-fixed-dim">
-                        <span class="material-symbols-outlined">shopping_cart</span>
-                    </button>
-                    <button
-                        class="active:scale-95 transition-transform text-on-surface-variant hover:text-primary-fixed-dim">
-                        <span class="material-symbols-outlined">notifications</span>
-                    </button>
-                    </button>
                     <div class="hidden sm:flex flex-col text-right mr-xs">
                         <span class="font-code-sm text-[10px] text-on-surface-variant uppercase">Connected
                             Address</span>
@@ -694,6 +701,12 @@
                             class="font-code-sm text-xs text-primary-fixed-dim max-w-[150px] truncate">Not
                             Connected</span>
                     </div>
+                    <button id="notification_btn" onclick="toggleNotificationPanel()" title="Invitations"
+                        class="relative shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-primary-fixed-dim/25 bg-primary-fixed-dim/5 flex items-center justify-center text-on-surface-variant hover:text-primary-fixed-dim hover:border-primary-fixed-dim/60 active:scale-95 transition-all">
+                        <span class="material-symbols-outlined text-[20px] sm:text-[22px]">notifications</span>
+                        <span id="notification_badge"
+                            class="hidden absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">0</span>
+                    </button>
                     <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-primary-fixed-dim/30 overflow-hidden cursor-pointer hover:border-primary-fixed-dim transition-colors shrink-0 flex items-center justify-center bg-primary-fixed-dim/10"
                         onclick="openProfilePopup()">
                         <span
@@ -702,6 +715,21 @@
                 </div>
             </div>
         </header>
+
+        <!-- Notification dropdown: invitation alerts -->
+        <div id="notification_panel"
+            class="hidden fixed top-20 right-4 z-[60] w-[min(92vw,360px)] max-h-[70vh] overflow-y-auto glass-panel rounded-xl border border-white/10 p-md space-y-sm shadow-2xl">
+            <div class="flex items-center justify-between">
+                <h3 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest">Notifications</h3>
+                <button onclick="refreshNotificationBadge(true)"
+                    class="text-outline hover:text-primary-fixed-dim bg-transparent border-none cursor-pointer">
+                    <span class="material-symbols-outlined text-base">refresh</span>
+                </button>
+            </div>
+            <div id="notification_list" class="space-y-xs">
+                <div class="font-code-sm text-xs text-outline">No new notifications.</div>
+            </div>
+        </div>
         <section id="page_explore" class="inner-page relative pt-20 pb-32">
 
             <!-- Hero Section -->
@@ -1137,13 +1165,33 @@
                     </div>
                 </div>
 
-                <!-- Category selector + view tabs -->
-                <div class="flex flex-col sm:flex-row gap-sm">
+                <!-- View tabs (revealed after the admin check) -->
+                <div id="marketplace_view_tabs"
+                    class="hidden flex items-stretch gap-1 p-1 bg-surface-container-low border border-white/10 rounded-lg overflow-x-auto scrollbar-none snap-x snap-mandatory scroll-smooth overscroll-x-contain max-w-full">
+                    <button data-view="properties"
+                        class="marketplace-tab-btn flex-none md:flex-1 min-w-0 px-sm md:px-md py-xs min-h-[36px] rounded text-center whitespace-nowrap font-label-caps text-[8px] sm:text-[9px] md:text-[10px] tracking-wider md:tracking-widest uppercase transition-all snap-start"
+                        onclick="setMarketplaceView('properties')">Properties</button>
+                    <button data-view="token"
+                        class="marketplace-tab-btn flex-none md:flex-1 min-w-0 px-sm md:px-md py-xs min-h-[36px] rounded text-center whitespace-nowrap font-label-caps text-[8px] sm:text-[9px] md:text-[10px] tracking-wider md:tracking-widest uppercase transition-all snap-start"
+                        onclick="setMarketplaceView('token')">Token</button>
+                    <button data-view="taskboard"
+                        class="marketplace-tab-btn flex-none md:flex-1 min-w-0 px-sm md:px-md py-xs min-h-[36px] rounded text-center whitespace-nowrap font-label-caps text-[8px] sm:text-[9px] md:text-[10px] tracking-wider md:tracking-widest uppercase transition-all snap-start"
+                        onclick="setMarketplaceView('taskboard')">Taskboard</button>
+                    <button data-view="overview"
+                        class="marketplace-tab-btn flex-none md:flex-1 min-w-0 px-sm md:px-md py-xs min-h-[36px] rounded text-center whitespace-nowrap font-label-caps text-[8px] sm:text-[9px] md:text-[10px] tracking-wider md:tracking-widest uppercase transition-all snap-start"
+                        onclick="setMarketplaceView('overview')">Overview</button>
+                    <button id="marketplace_config_tab_btn" data-view="config"
+                        class="marketplace-tab-btn hidden flex-none md:flex-1 min-w-0 px-sm md:px-md py-xs min-h-[36px] rounded text-center whitespace-nowrap font-label-caps text-[8px] sm:text-[9px] md:text-[10px] tracking-wider md:tracking-widest uppercase transition-all snap-start"
+                        onclick="setMarketplaceView('config')">Config</button>
+                </div>
+
+                <!-- Property browsing controls (revealed after the admin check) -->
+                <div id="marketplace_property_controls" class="hidden flex flex-wrap items-center gap-sm">
                     <div id="marketplace_category_select_wrap"
-                        class="relative flex items-center gap-xs px-sm md:px-md py-sm bg-surface-container-low border border-white/10 rounded-lg focus-within:border-primary-fixed-dim/50 transition-colors sm:w-64 shrink-0">
+                        class="relative flex items-center gap-xs px-sm md:px-md py-0 h-11 bg-surface-container-low border border-white/10 rounded-lg focus-within:border-primary-fixed-dim/50 transition-colors w-full sm:w-64 shrink-0">
                         <span class="material-symbols-outlined text-outline text-sm shrink-0">category</span>
                         <select id="marketplace_category_select"
-                            class="bg-transparent border-none flex-1 min-w-0 truncate text-on-surface font-code-sm text-code-sm outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none appearance-none cursor-pointer"
+                            class="h-full bg-transparent border-none flex-1 min-w-0 truncate text-on-surface font-code-sm text-code-sm outline-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none appearance-none cursor-pointer py-0"
                             aria-label="Select category" style="color-scheme: dark;">
                             <option value="">Loading categories...</option>
                         </select>
@@ -1153,31 +1201,19 @@
                             <span class="material-symbols-outlined text-base">add</span>
                         </button>
                     </div>
-                    <div id="marketplace_view_tabs"
-                        class="flex items-stretch gap-1 p-1 bg-surface-container-low border border-white/10 rounded-lg overflow-x-auto scrollbar-none">
-                        <button data-view="properties"
-                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
-                            onclick="setMarketplaceView('properties')">Properties</button>
-                        <button data-view="token"
-                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
-                            onclick="setMarketplaceView('token')">Token</button>
-                        <button data-view="taskboard"
-                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
-                            onclick="setMarketplaceView('taskboard')">Taskboard</button>
-                        <button data-view="overview"
-                            class="marketplace-tab-btn flex-1 min-w-0 px-sm md:px-md py-xs rounded text-center whitespace-nowrap font-label-caps text-[9px] md:text-[10px] tracking-widest uppercase transition-all"
-                            onclick="setMarketplaceView('overview')">Overview</button>
-                    </div>
                     <label id="marketplace_top100_toggle_wrap"
-                        class="flex items-center gap-xs px-md py-sm bg-surface-container-low border border-white/10 rounded-lg cursor-pointer shrink-0">
+                        class="flex flex-1 sm:flex-none min-w-0 items-center justify-center sm:justify-start gap-xs px-sm sm:px-md py-xs sm:py-sm bg-surface-container-low border border-white/10 rounded-lg cursor-pointer shrink-0 min-h-[44px]">
                         <input id="marketplace_top100_toggle" type="checkbox" onchange="handleMarketplaceTop100Toggle()"
-                            class="accent-[#00dbe9]" />
-                        <span class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Top 100
-                            only</span>
+                            class="accent-[#00dbe9] shrink-0" />
+                        <span class="font-label-caps text-[9px] sm:text-[10px] text-outline uppercase tracking-wider sm:tracking-widest whitespace-nowrap">Top
+                            100 only</span>
                     </label>
                     <button id="marketplace_add_property_btn" onclick="toggleMarketplaceAddPropertyForm()"
-                        class="hidden shrink-0 flex items-center justify-center gap-xs px-md py-sm rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 text-primary-fixed-dim font-label-caps text-[10px] tracking-widest uppercase hover:bg-primary-fixed-dim/20 transition-all">
-                        <span class="material-symbols-outlined text-base">add</span>
+                        class="hidden flex flex-1 sm:flex-none min-w-0 items-center justify-center gap-xs px-sm sm:px-md py-xs sm:py-sm rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/30 text-primary-fixed-dim font-label-caps text-[9px] sm:text-[10px] tracking-wider sm:tracking-widest uppercase leading-none hover:bg-primary-fixed-dim/20 transition-all min-h-[44px] whitespace-nowrap">
+                        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14" />
+                        </svg>
                         New Property
                     </button>
                 </div>
@@ -1221,14 +1257,17 @@
                                 class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim focus:ring-1 focus:ring-primary-fixed-dim transition-all placeholder:text-outline/50"
                                 placeholder="e.g. Personal Poetry" />
                         </div>
-                        <div class="flex gap-2">
+                        <div class="grid grid-cols-2 gap-2">
                             <button onclick="toggleMarketplaceAddPropertyForm()"
-                                class="flex items-center justify-center px-lg py-3 rounded-lg border border-white/10 text-outline font-label-caps text-[10px] tracking-widest uppercase hover:bg-white/5 transition-all">
+                                class="flex min-w-0 items-center justify-center px-sm sm:px-lg py-3 rounded-lg border border-white/10 text-outline font-label-caps text-[10px] tracking-wider sm:tracking-widest uppercase hover:bg-white/5 transition-all whitespace-nowrap">
                                 Cancel
                             </button>
                             <button onclick="handleMarketplaceAddProperty()"
-                                class="flex items-center justify-center gap-xs px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all flex-1">
-                                <span class="material-symbols-outlined text-base">add</span>
+                                class="flex min-w-0 items-center justify-center gap-xs px-sm sm:px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-wider sm:tracking-widest uppercase leading-none hover:scale-[1.02] active:scale-[0.98] transition-all whitespace-nowrap">
+                                <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
                                 Create
                             </button>
                         </div>
@@ -1363,6 +1402,22 @@
 
                     <h2 class="font-headline-md text-headline-md text-on-surface" id="marketplace_property_name">--</h2>
 
+                    <div class="flex flex-wrap items-center gap-sm -mt-sm">
+                        <span class="font-code-sm text-[11px] text-outline px-sm py-xs rounded-lg bg-white/5 border border-white/10">
+                            <span class="text-on-surface" id="marketplace_people_count">0</span> people
+                        </span>
+                        <span class="font-code-sm text-[11px] text-outline px-sm py-xs rounded-lg bg-white/5 border border-white/10">
+                            <span class="text-on-surface" id="marketplace_membership_count">0</span> roles
+                        </span>
+                        <span class="font-code-sm text-[11px] text-outline px-sm py-xs rounded-lg bg-white/5 border border-white/10">
+                            <span class="text-on-surface" id="marketplace_pending_invitations_count">0</span> pending invites
+                        </span>
+                        <span id="marketplace_bundle_chip"
+                            class="hidden font-code-sm text-[11px] text-primary-fixed-dim px-sm py-xs rounded-lg bg-primary-fixed-dim/10 border border-primary-fixed-dim/20">
+                            Bundle of <span id="marketplace_bundle_count">0</span>
+                        </span>
+                    </div>
+
                     <!-- Stats row -->
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-gutter">
                         <div class="glass-panel p-md rounded-xl flex flex-col gap-2">
@@ -1405,6 +1460,34 @@
                         </div>
                     </div>
 
+                    <!-- Admin-only score / penalty -->
+                    <div id="marketplace_admin_score_panel"
+                        class="hidden glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Admin Score</h3>
+                            <span id="marketplace_admin_score_current"
+                                class="font-code-sm text-xs text-primary-fixed-dim">0.00</span>
+                        </div>
+                        <p id="marketplace_admin_score_reason" class="font-code-sm text-[11px] text-outline/70">—</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr_auto] gap-sm items-end">
+                            <div>
+                                <label class="font-label-caps text-[10px] text-outline tracking-wider block mb-2">Bonus /
+                                    Penalty</label>
+                                <input id="marketplace_admin_score_input" type="number" step="any"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                    placeholder="e.g. 25 or -10" />
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-[10px] text-outline tracking-wider block mb-2">Reason</label>
+                                <input id="marketplace_admin_score_reason_input" type="text"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                    placeholder="Why this adjustment?" />
+                            </div>
+                            <button onclick="handleMarketplaceSaveAdminScore()"
+                                class="px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Save</button>
+                        </div>
+                    </div>
+
                     <!-- Components attached to this bundle -->
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
@@ -1440,6 +1523,15 @@
                             <button onclick="handleMarketplaceAttachComponent()"
                                 class="shrink-0 px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Attach</button>
                         </div>
+                    </div>
+
+                    <!-- Bundle members (only for weakest-properties bundles) -->
+                    <div id="marketplace_bundle_members_panel" class="hidden glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Bundle Members</h3>
+                            <span id="marketplace_bundle_members_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="marketplace_bundle_members_list" class="space-y-xs"></div>
                     </div>
 
                     <!-- People working on this bundle -->
@@ -1492,6 +1584,88 @@
                                 <button onclick="handleMarketplaceRegisterPerson()"
                                     class="sm:col-span-2 px-lg py-3 rounded-lg bg-white/5 border border-white/10 text-on-surface font-label-caps text-[10px] tracking-widest uppercase">Save
                                     profile</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Invitations to join this property / its parts -->
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between gap-sm">
+                            <h3 class="font-label-caps text-xs text-outline uppercase tracking-widest">Invitations</h3>
+                            <button id="marketplace_show_invite_btn" onclick="toggleMarketplaceInviteForm()"
+                                class="hidden font-label-caps text-[10px] text-primary-fixed-dim uppercase tracking-widest">+
+                                Invite</button>
+                        </div>
+                        <div id="marketplace_invitations_list" class="space-y-xs">
+                            <div class="font-code-sm text-xs text-outline">No pending invitations.</div>
+                        </div>
+                        <div id="marketplace_invite_form"
+                            class="hidden space-y-sm pt-sm border-t border-white/5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-sm">
+                                <div class="sm:col-span-2">
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Invitee
+                                        FLO ID</label>
+                                    <input id="marketplace_invite_floid" type="text"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        placeholder="FLO ID of the person to invite" />
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Part</label>
+                                    <select id="marketplace_invite_part" onchange="handleMarketplaceInvitePartChange()"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        style="color-scheme: dark;">
+                                        <option value="people">People</option>
+                                        <option value="creative">Creative</option>
+                                        <option value="finance">Finance</option>
+                                        <option value="marketing">Marketing</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Role</label>
+                                    <input id="marketplace_invite_role" type="text"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim"
+                                        placeholder="e.g. lyrics, producer, finance" />
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-xs text-outline tracking-wider block mb-2">Expires
+                                        in (days)</label>
+                                    <input id="marketplace_invite_expiry" type="number" min="1" max="90" value="7"
+                                        class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                                </div>
+                                <div class="flex items-end">
+                                    <button onclick="handleMarketplaceCreateInvitation()"
+                                        class="w-full px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Create
+                                        invitation</button>
+                                </div>
+                            </div>
+                            <div id="marketplace_invite_link_wrap"
+                                class="hidden rounded-lg bg-black/30 border border-white/5 p-3 space-y-1.5">
+                                <div class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Share this
+                                    link</div>
+                                <div class="flex flex-wrap items-center gap-sm">
+                                    <input id="marketplace_invite_link" type="text" readonly
+                                        class="flex-1 min-w-[180px] bg-transparent border-none text-primary-fixed-dim font-code-sm text-[11px] focus:outline-none" />
+                                    <button onclick="copyMarketplaceInviteLink()"
+                                        class="shrink-0 text-outline hover:text-primary-fixed-dim flex items-center gap-1 bg-transparent border-none cursor-pointer text-[11px]">
+                                        <span class="material-symbols-outlined text-[14px]">content_copy</span>
+                                        Copy
+                                    </button>
+                                    <button onclick="shareMarketplaceInviteLink('email')"
+                                        class="shrink-0 text-outline hover:text-primary-fixed-dim flex items-center gap-1 bg-transparent border-none cursor-pointer text-[11px]">
+                                        <span class="material-symbols-outlined text-[14px]">mail</span>
+                                        Email
+                                    </button>
+                                    <button onclick="shareMarketplaceInviteLink('sms')"
+                                        class="shrink-0 text-outline hover:text-primary-fixed-dim flex items-center gap-1 bg-transparent border-none cursor-pointer text-[11px]">
+                                        <span class="material-symbols-outlined text-[14px]">sms</span>
+                                        SMS
+                                    </button>
+                                    <button onclick="shareMarketplaceInviteLink('native')"
+                                        class="shrink-0 text-outline hover:text-primary-fixed-dim flex items-center gap-1 bg-transparent border-none cursor-pointer text-[11px]">
+                                        <span class="material-symbols-outlined text-[14px]">share</span>
+                                        Share
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1686,8 +1860,36 @@
                     <p class="font-code-sm text-code-sm text-outline mt-2">Loading marketplace...</p>
                 </div>
 
-                <!-- Overview Panel: All People, Finance, and Marketing -->
+                <!-- Overview Panel: people, creative, finance, marketing, tasks, consumption -->
                 <div id="marketplace_overview_panel" class="hidden space-y-gutter">
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-gutter">
+                        <div class="glass-panel p-md rounded-xl">
+                            <div class="font-label-caps text-[9px] text-outline uppercase tracking-widest">People</div>
+                            <div class="font-display-lg text-[24px] text-primary-fixed-dim" id="overview_unique_people_count">0</div>
+                            <div class="font-code-sm text-[10px] text-outline"><span id="overview_membership_count">0</span> roles</div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl">
+                            <div class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Properties</div>
+                            <div class="font-display-lg text-[24px] text-on-surface" id="overview_property_count">0</div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl">
+                            <div class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Tasks</div>
+                            <div class="font-display-lg text-[24px] text-on-surface" id="overview_task_count">0</div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl">
+                            <div class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Payouts</div>
+                            <div class="font-display-lg text-[24px] text-on-surface" id="overview_payout_count">0</div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl">
+                            <div class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Invites</div>
+                            <div class="font-display-lg text-[24px] text-on-surface" id="overview_invite_count">0</div>
+                        </div>
+                        <div class="glass-panel p-md rounded-xl">
+                            <div class="font-label-caps text-[9px] text-outline uppercase tracking-widest">Consumption</div>
+                            <div class="font-display-lg text-[24px] text-primary-fixed-dim" id="overview_consumption_total">0</div>
+                        </div>
+                    </div>
+
                     <div class="glass-panel rounded-xl p-md space-y-sm">
                         <div class="flex items-center justify-between">
                             <h2
@@ -1704,12 +1906,46 @@
                         <div class="flex items-center justify-between">
                             <h2
                                 class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">graphic_eq</span>
+                                Creative Parts
+                            </h2>
+                            <span id="overview_creative_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="overview_creative_breakdown" class="flex flex-wrap gap-sm"></div>
+                        <div id="overview_creative_list" class="space-y-xs"></div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
                                 <span class="material-symbols-outlined text-base">account_balance_wallet</span>
                                 All Finance
                             </h2>
                             <span id="overview_finance_count" class="font-code-sm text-xs text-outline">0</span>
                         </div>
                         <div id="overview_finance_list" class="space-y-xs"></div>
+                        <div class="pt-sm border-t border-white/5 space-y-xs">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Allocations</h3>
+                                <span id="overview_finance_allocations_count" class="font-code-sm text-[10px] text-outline">0</span>
+                            </div>
+                            <div id="overview_finance_allocations_list" class="space-y-xs"></div>
+                        </div>
+                        <div class="pt-sm border-t border-white/5 space-y-xs">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Payouts</h3>
+                                <span id="overview_payouts_count" class="font-code-sm text-[10px] text-outline">0</span>
+                            </div>
+                            <div id="overview_payouts_list" class="space-y-xs"></div>
+                        </div>
+                        <div class="pt-sm border-t border-white/5 space-y-xs">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-label-caps text-[10px] text-outline uppercase tracking-widest">Royalty Splits</h3>
+                                <span id="overview_royalty_count" class="font-code-sm text-[10px] text-outline">0</span>
+                            </div>
+                            <div id="overview_royalty_list" class="space-y-xs"></div>
+                        </div>
                     </div>
 
                     <div class="glass-panel rounded-xl p-md space-y-sm">
@@ -1722,6 +1958,135 @@
                             <span id="overview_marketing_count" class="font-code-sm text-xs text-outline">0</span>
                         </div>
                         <div id="overview_marketing_list" class="space-y-xs"></div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">handyman</span>
+                                All Tasks
+                            </h2>
+                            <span id="overview_tasks_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="overview_tasks_list" class="space-y-xs"></div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">mail</span>
+                                Invitations
+                            </h2>
+                            <span id="overview_invite_breakdown" class="font-code-sm text-xs text-outline">—</span>
+                        </div>
+                        <div id="overview_invitations_list" class="space-y-xs">
+                            <div class="font-code-sm text-xs text-outline">Invitation counts by status are shown above.</div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">inbox</span>
+                                My Invitations
+                            </h2>
+                            <span id="overview_my_invites_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="overview_my_invites_list" class="space-y-xs">
+                            <div class="font-code-sm text-xs text-outline">Sign in to see invitations addressed to you.</div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">pie_chart</span>
+                                Consumption Shares
+                            </h2>
+                            <span id="overview_consumption_count" class="font-code-sm text-xs text-outline">0</span>
+                        </div>
+                        <div id="overview_consumption_list" class="space-y-xs"></div>
+                    </div>
+                </div>
+
+                <!-- Configuration + formulas panel (admin only) -->
+                <div id="marketplace_config_panel" class="hidden space-y-gutter">
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-sm">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">tune</span>
+                                Marketplace Formulas
+                            </h2>
+                            <button onclick="handleMarketplaceRunPipeline()"
+                                class="font-label-caps text-[10px] text-outline hover:text-primary-fixed-dim uppercase tracking-widest">Run
+                                pipeline now</button>
+                        </div>
+                        <div id="marketplace_formulas_list" class="space-y-xs">
+                            <div class="font-code-sm text-xs text-outline">Loading formulas…</div>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel rounded-xl p-md space-y-sm">
+                        <div class="flex items-center justify-between">
+                            <h2
+                                class="font-label-caps text-xs text-primary-fixed-dim uppercase tracking-widest flex items-center gap-xs">
+                                <span class="material-symbols-outlined text-base">settings</span>
+                                Configuration
+                            </h2>
+                            <span class="font-code-sm text-[10px] text-outline px-2 py-1 rounded bg-white/5 border border-white/10">
+                                weighted formula</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-sm">
+                            <div>
+                                <label class="font-label-caps text-[10px] text-outline tracking-wider block mb-2">People
+                                    weight</label>
+                                <input id="config_people_weight" type="number" min="0" step="any"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-[10px] text-outline tracking-wider block mb-2">Tasks weight</label>
+                                <input id="config_task_weight" type="number" min="0" step="any"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-[10px] text-outline tracking-wider block mb-2">Top N
+                                    properties</label>
+                                <input id="config_top_n_properties" type="number" min="1" step="1"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-[10px] text-outline tracking-wider block mb-2">Weak bundle
+                                    size</label>
+                                <input id="config_weak_bundle_size" type="number" min="2" step="1"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                            </div>
+                            <div>
+                                <label class="font-label-caps text-[10px] text-outline tracking-wider block mb-2">Sell queue
+                                    period (days)</label>
+                                <input id="config_sell_queue_period_days" type="number" min="0.01" step="any"
+                                    class="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-code-sm focus:outline-none focus:border-primary-fixed-dim" />
+                            </div>
+                            <div class="flex items-end">
+                                <label
+                                    class="flex items-center gap-sm font-code-sm text-xs text-on-surface cursor-pointer">
+                                    <input id="config_weak_bundle_enabled" type="checkbox"
+                                        class="w-4 h-4 accent-primary-fixed-dim" />
+                                    Bundle weakest properties
+                                </label>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-sm pt-sm border-t border-white/5">
+                            <button id="marketplace_config_save_btn" onclick="handleMarketplaceSaveConfig()"
+                                class="px-lg py-3 rounded-lg bg-primary-fixed-dim text-on-primary-fixed font-label-caps text-[10px] tracking-widest uppercase">Save
+                                configuration</button>
+                            <span id="marketplace_config_note" class="font-code-sm text-[11px] text-outline/70">Changes apply
+                                on the next pipeline run.</span>
+                        </div>
                     </div>
                 </div>
 

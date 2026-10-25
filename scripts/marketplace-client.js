@@ -256,6 +256,156 @@ async function marketplaceRemovePerson(propertyId, personFloId, role) {
   );
 }
 
+async function marketplaceResolveSuno(url) {
+  return marketplaceGetRequest(
+    `/api/suno-resolve?url=${encodeURIComponent(url)}`,
+  );
+}
+
+// --- Property invitations -----------------------------
+
+async function marketplaceGetPropertyInvitations(propertyId) {
+  return marketplaceGetRequest(`/api/properties/${propertyId}/invitations`);
+}
+
+// Admin-only on the backend.
+async function marketplaceCreatePropertyInvitation(
+  propertyId,
+  inviteeFloId,
+  part,
+  role,
+  expiresInDays,
+) {
+  return signedMarketplaceRequest(
+    `/api/properties/${propertyId}/invitations`,
+    { propertyId },
+    {
+      adminFloId: floGlobals.myFloID,
+      inviteeFloId,
+      part,
+      role,
+      expiresInDays,
+    },
+    [
+      "propertyId",
+      "adminFloId",
+      "inviteeFloId",
+      "part",
+      "role",
+      "expiresInDays",
+      "time",
+    ],
+  );
+}
+
+// Admin-only on the backend.
+async function marketplaceRevokePropertyInvitation(propertyId, invitationId) {
+  return signedMarketplaceRequest(
+    `/api/properties/${propertyId}/invitations/${invitationId}/revoke`,
+    { propertyId, invitationId },
+    { adminFloId: floGlobals.myFloID },
+    ["propertyId", "invitationId", "adminFloId", "time"],
+  );
+}
+
+async function marketplaceGetInvitation(token) {
+  return marketplaceGetRequest(`/api/invitations/${encodeURIComponent(token)}`);
+}
+
+async function marketplaceGetMyInvitations() {
+  return signedMarketplaceRequest(
+    `/api/invitations/inbox`,
+    {},
+    { floId: floGlobals.myFloID },
+    ["floId", "time"],
+  );
+}
+
+async function marketplaceMarkInvitationsRead() {
+  return signedMarketplaceRequest(
+    `/api/invitations/mark-read`,
+    {},
+    { floId: floGlobals.myFloID },
+    ["floId", "time"],
+  );
+}
+
+async function marketplaceGetUnreadInvitationCount() {
+  return signedMarketplaceRequest(
+    `/api/invitations/unread-count`,
+    {},
+    { floId: floGlobals.myFloID },
+    ["floId", "time"],
+  );
+}
+
+async function marketplaceResendPropertyInvitation(
+  propertyId,
+  invitationId,
+  expiresInDays,
+) {
+  return signedMarketplaceRequest(
+    `/api/properties/${propertyId}/invitations/${invitationId}/resend`,
+    { propertyId, invitationId },
+    { adminFloId: floGlobals.myFloID, expiresInDays },
+    [
+      "propertyId",
+      "invitationId",
+      "adminFloId",
+      "expiresInDays",
+      "time",
+    ],
+  );
+}
+
+async function marketplaceSetAdminScore(propertyId, score, reason) {
+  return signedMarketplaceRequest(
+    `/api/properties/${propertyId}/admin-score`,
+    { propertyId },
+    {
+      adminFloId: floGlobals.myFloID,
+      score,
+      reason,
+    },
+    ["propertyId", "adminFloId", "score", "reason", "time"],
+  );
+}
+
+async function marketplaceGetConfig() {
+  return marketplaceGetRequest(`/api/marketplace/config`);
+}
+
+async function marketplaceUpdateConfig(key, value) {
+  return signedMarketplaceRequest(
+    `/api/marketplace/config`,
+    {},
+    {
+      adminFloId: floGlobals.myFloID,
+      key,
+      value,
+    },
+    ["adminFloId", "key", "value", "time"],
+  );
+}
+
+async function marketplaceAcceptInvitation(token) {
+  return signedMarketplaceRequest(
+    `/api/invitations/${encodeURIComponent(token)}/accept`,
+    { token },
+    { floId: floGlobals.myFloID },
+    ["token", "floId", "time"],
+  );
+}
+
+async function marketplaceDeclineInvitation(token) {
+  return signedMarketplaceRequest(
+    `/api/invitations/${encodeURIComponent(token)}/decline`,
+    { token },
+    { floId: floGlobals.myFloID },
+    ["token", "floId", "time"],
+  );
+}
+
 // --- People ------------------------------------------
 
 // Self-service - registers/updates the signed-in user's own profile so
@@ -522,6 +672,18 @@ async function marketplaceSelectWinner(taskId, submissionId) {
     { adminFloId: floGlobals.myFloID, submissionId },
     ["taskId", "submissionId", "adminFloId", "time"]
   );
+}
+
+async function marketplaceGetPeople() {
+  return marketplaceGetRequest(`/api/people`);
+}
+
+async function marketplaceGetConsumptionShares() {
+  return marketplaceGetRequest(`/api/marketplace/consumption`);
+}
+
+async function marketplaceGetFormulas() {
+  return marketplaceGetRequest(`/api/marketplace/formulas`);
 }
 
 async function marketplaceGetOverview() {

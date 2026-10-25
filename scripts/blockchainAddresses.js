@@ -29,13 +29,12 @@
  * - bitjs (for WIF decoding)
  * - Crypto.util (for hex/bytes conversion)
  * - xrpl (for XRP)
- * - nacl/TweetNaCl (for SUI, TON, ALGO, XLM)
+ * - nacl/TweetNaCl (for SUI, TON, ALGO, XLM, SOL)
  * - TonWeb (for TON)
  * - TronWeb (for TRON)
  * - @polkadot/util-crypto (for DOT)
  * - @polkadot/util (for DOT)
  * - js-sha512 (for ALGO)
- * - @solana/web3.js (for SOL)
  * - cardanoCrypto (for ADA)
  */
 
@@ -1003,16 +1002,14 @@ function convertWIFtoSolanaAddress(wif) {
     const privBytes = hexToBytes(privKeyHex);
     const seed = new Uint8Array(privBytes.slice(0, 32));
 
-    // Generate Ed25519 keypair from seed
-    // Use Solana Web3.js Keypair.fromSeed()
-    if (typeof solanaWeb3 === "undefined") {
-      throw new Error("Solana Web3.js library not loaded");
+    // Generate Ed25519 keypair from seed and Base58-encode the public key.
+    
+    if (typeof nacl === "undefined" || !nacl.sign) {
+      throw new Error("TweetNaCl library not loaded");
     }
 
-    const keypair = solanaWeb3.Keypair.fromSeed(seed);
-    const solanaAddress = keypair.publicKey.toString();
-
-    return solanaAddress;
+    const keypair = nacl.sign.keyPair.fromSeed(seed);
+    return bs58.encode(keypair.publicKey);
   } catch (error) {
     console.error("WIF to Solana conversion error:", error);
     return null;

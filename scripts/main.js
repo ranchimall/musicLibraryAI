@@ -120,6 +120,17 @@ audio.addEventListener("ended", () => {
   audio.currentTime = 0;
 });
 
+// Some browsers cannot decode Suno's audio-only m4a. Fall back to the MP4 copy, which carries a broadly supported AAC audio track.
+audio.addEventListener("error", () => {
+  const track = TRACKS[currentTrackIndex];
+  if (!track?.videoUrl) return;
+  const currentSrc = audio.currentSrc || audio.src;
+  if (currentSrc === track.videoUrl) return;
+  console.warn("Audio source failed; trying the Suno MP4 fallback.");
+  audio.src = track.videoUrl;
+  audio.play().catch((err) => console.error("MP4 fallback failed:", err));
+});
+
 // Volume controls
 function updateVolumeUI() {
   if (!volumeIcon || !volumeBar) return;
@@ -492,7 +503,6 @@ function trackCardHtml(t, gridPrefix) {
   const artist = t.artist || "Unknown Artist";
   const cover = t.img || t.cover || "";
   const audio = t.audio || "";
-  const videoUrl = t.videoUrl || "";
   const id = t.id || "";
 
   const safeTitle = title.replace(/'/g, "\\'");
@@ -512,23 +522,10 @@ function trackCardHtml(t, gridPrefix) {
         <div class="glass-panel rounded-xl p-md group cursor-pointer hover:border-primary-fixed-dim/40 transition-all flex flex-col"
             onclick="playTrack('${audio}', '${safeTitle}', '${safeArtist}', '${cover}')">
             <div class="relative aspect-square mb-md overflow-hidden rounded-lg">
-                ${
-                  videoUrl
-      ? `<video
-        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-        src="${videoUrl}"
-        autoplay
-        muted
-        loop
-        playsinline
-        preload="metadata"
-        aria-label="${title} by ${artist}">
-    </video>`
-      : `<img
-        class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-        alt="${title} by ${artist}"
-        src="${cover}" />`
-    }
+                <img
+                    class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    alt="${title} by ${artist}"
+                    src="${cover}" />
                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div class="w-16 h-16 rounded-full bg-primary-fixed-dim text-on-primary flex items-center justify-center shadow-lg">
                         <span class="material-symbols-outlined text-4xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
@@ -759,8 +756,6 @@ window.loadTracksFromCloud = async function () {
     // requestGeneralData returns delta. The full data is stored in floGlobals.generalDataset
     await floCloudAPI.requestGeneralData("MusicLibrary_Track");
     const data = floGlobals.generalDataset("MusicLibrary_Track");
-
-    console.log("Cloud data received:", data);
 
     TRACKS = [];
     const grid = document.getElementById("explore_track_grid");
@@ -1211,33 +1206,51 @@ function updateMedia(imgId, videoId, imgUrl, videoUrl) {
 
   if (!img || !video) return;
 
-  if (videoUrl) {
-    img.classList.add("hidden");
-
-    video.src = videoUrl;
-    video.classList.remove("hidden");
-
-    video.muted = true;
-    video.loop = true;
-    video.playsInline = true;
-
-    video.load();
-    video.play().catch(() => {});
-  } else {
+  if (video.src) {
     video.pause();
     video.removeAttribute("src");
     video.load();
-    video.classList.add("hidden");
-
-    img.src = imgUrl || "";
-    img.classList.remove("hidden");
   }
+  video.classList.add("hidden");
+
+  if (imgUrl) {
+    img.src = imgUrl;
+  }
+  img.classList.remove("hidden");
 }
 
-window.playTrack = function (audioUrl, title, artist, imgUrl) {
+window.playTrack = async function (audioUrl, title, artist, imgUrl) {
   currentTrackIndex = TRACKS.findIndex((t) => t.audio === audioUrl);
   const track = TRACKS[currentTrackIndex];
-  const videoUrl = track?.videoUrl || "";
+  let videoUrl = track?.videoUrl || "";
+
+  // Older published Suno tracks used the obsolete cdn1 .mp3 path. Resolve the current m4a/mp4 assets from the song page before playback.
+  if (
+    track?.platform === "suno" &&
+    (track.sourceUrl || track.id) &&
+    (!videoUrl || /\.mp3($|\?)/i.test(audioUrl || ""))
+  ) {
+    try {
+      const sourceUrl =
+        track.sourceUrl || `https://suno.com/song/${track.id}`;
+      const resolved = await marketplaceResolveSuno(sourceUrl);
+      if (resolved.audioUrl) {
+        audioUrl = resolved.audioUrl;
+        track.resolvedAudioUrl = resolved.audioUrl;
+      }
+      if (resolved.videoUrl) {
+        videoUrl = resolved.videoUrl;
+        track.videoUrl = resolved.videoUrl;
+      }
+    } catch (err) {
+      console.warn("Could not refresh Suno media URL:", err);
+      if (track.id) {
+        const mp4 = `https://cdn1.suno.ai/${track.id}.mp4`;
+        audioUrl = mp4;
+        videoUrl = mp4;
+      }
+    }
+  }
 
   if (track) {
     fetchTrackLikes(track.id).then(updatePlayerLikes).catch(console.error);
@@ -1272,7 +1285,7 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
   }
 
   // Use the track ID directly when available.
-  // This works for Suno (.mp3), Flow Music (.m4a), and other formats.
+  // Suno now serves m4a/mp4; Flow Music uses m4a.
   currentPlayingUUID = track?.id || null;
 
   // extract UUID from the audio URL if the track
@@ -1390,7 +1403,8 @@ window.playTrack = function (audioUrl, title, artist, imgUrl) {
 };
 
 window.playSunoTrack = function (trackId) {
-  playTrack(`https://cdn1.suno.ai/${trackId}.mp3`);
+  // Suno's old /<id>.mp3 URLs now return 403; the MP4 copy is the stable public asset. Published tracks still go through the resolver in playTrack.
+  playTrack(`https://cdn1.suno.ai/${trackId}.mp4`);
 };
 
 // Helper to test full Suno links directly
